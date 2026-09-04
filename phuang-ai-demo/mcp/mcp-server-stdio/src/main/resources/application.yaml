@@ -1,0 +1,18 @@
+#非web模式运行（必须设置）
+spring.main.web-application-type: none
+#关闭打印banner（必须设置）
+spring.main.banner-mode: off
+
+#项目名称
+spring.application.name: mcp-server-stdio
+
+# 定义mcp同步模式(必须)
+spring.ai.mcp.server.type: SYNC
+# mcp 服务名称
+spring.ai.mcp.server.name: phuang-weather-mcp-server
+spring.ai.mcp.server.version: 1.0.0
+spring.ai.mcp.server.stdio: true
+spring.ai.mcp.server.enabled: true
+
+# 关闭日志输出
+logging.level.root: OFF

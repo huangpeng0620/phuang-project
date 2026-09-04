@@ -1,0 +1,46 @@
+server.port: 9005
+#大模型对话中文乱码UTF8编码处理
+server.servlet.encoding.enabled: true
+server.servlet.encoding.force: true
+server.servlet.encoding.charset: UTF-8
+
+#项目名称
+spring.application.name: rag
+
+#SpringAIAlibaba config
+spring.ai.dashscope.api-key: @dashscope.api.key@
+spring.ai.dashscope.chat.options.model: deepseek-v3
+
+# pgvector 数据库连接
+spring.datasource.url: jdbc:postgresql://8.136.10.85:5433/rag_test
+spring.datasource.username: pgvector
+spring.datasource.password: pgvector
+# 向量化
+spring.ai.dashscope.embedding.options.model: text-embedding-v4 # 指定 embedding 向量模型
+spring.ai.dashscope.embedding.options.dimensions: 768          # 指定向量维度
+spring.ai.vectorstore.pgvector.index-type: HNSW                # 相似度计算:余弦值
+spring.ai.vectorstore.pgvector.dimensions: 768                 # 向量维度
+spring.ai.vectorstore.pgvector.max-document-batch-size: 9      # 批量处理大小
+spring.ai.vectorstore.pgvector.initialize-schema: true         # 启动时是否自动创建表
+spring.ai.vectorstore.pgvector.table-name: vector_test         # 创建的表名
+
+# 查询预处理增强
+rag.query.similarity-threshold: 0.5
+# 存量示例文档尚未写入 product/version/region 等元数据，完善入库元数据后再开启。
+rag.query.apply-extracted-filters: false
+
+# neo4j 配置
+#spring.neo4j.uri: bolt://8.136.10.85:7687
+#spring.neo4j.authentication.username: neo4j
+#spring.neo4j.authentication.password: neo4j666
+
+#minio 配置
+minio.url: http://8.136.10.85:9000
+minio.accessKey: minioadmin
+minio.secretKey: minioadmin
+minio.bucketName: rag-test
+minio.endpoint: http://8.136.10.85:9000
+
+# 更改 MultipartFile 文件上传限制
+spring.servlet.multipart.max-file-size: 100MB
+spring.servlet.multipart.max-request-size: 110MB

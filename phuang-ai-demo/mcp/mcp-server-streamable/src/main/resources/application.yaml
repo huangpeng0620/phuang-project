@@ -1,0 +1,26 @@
+server.port: 8003
+#大模型对话中文乱码UTF8编码处理
+server.servlet.encoding.enabled: true
+server.servlet.encoding.force: true
+server.servlet.encoding.charset: UTF-8
+
+#项目名称
+spring.application.name: mcp-server-streamable
+
+# mcp-sever config
+# 定义mcp同步模式(必须)
+spring.ai.mcp.server.type: SYNC
+# mcp 服务名称
+spring.ai.mcp.server.name: phuang-weather-mcp-server
+# 开启 Streamable HTTP 模式
+spring.ai.mcp.server.protocol: STREAMABLE
+# 用于定义 MCP Server 的提示词，指导模型行为
+spring.ai.mcp.server.instructions: "这个服务是用来查询城市天气的"
+spring.ai.mcp.server.version: 1.0.0
+spring.ai.mcp.server.resource-change-notification: true
+spring.ai.mcp.server.tool-change-notification: true
+spring.ai.mcp.server.prompt-change-notification: true
+# 指定服务的端口路径
+spring.ai.mcp.server.streamable-http.mcp-endpoint: /api/mcp
+# 设置 HTTP 连接心跳间隔,保证长连接稳定
+spring.ai.mcp.server.streamable-http.keep-alive-interval: 30s

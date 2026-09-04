@@ -1,0 +1,35 @@
+server.port: 8001
+#大模型对话中文乱码UTF8编码处理
+server.servlet.encoding.enabled: true
+server.servlet.encoding.force: true
+server.servlet.encoding.charset: UTF-8
+
+#项目名称
+spring.application.name: mcp-client
+
+#SpringAIAlibaba config
+spring.ai.dashscope.api-key: @dashscope.api.key@
+spring.ai.dashscope.base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+spring.ai.dashscope.chat.options.model: deepseek-r1
+
+# mcp-sever config
+spring.ai.mcp.client.name: phuang-weather-mcp-server
+spring.ai.mcp.client.type: SYNC
+spring.ai.mcp.client.version: 1.0.0
+spring.ai.mcp.client.request-timeout: 60s
+
+# stdio 方式 (配置一,目前只支持stdio方式)
+#spring.ai.mcp.client.stdio.servers-configuration: classpath:/mcp-servers.json
+# stdio 方式 (配置二)
+spring.ai.mcp.client.stdio.connections.weather-stdio.command: java
+spring.ai.mcp.client.stdio.connections.weather-stdio.args[0]: -jar
+spring.ai.mcp.client.stdio.connections.weather-stdio.args[1]: "/Users/phuang/Repositories/phuang-ai-demo/mcp/mcp-server-stdio/target/mcp-server-stdio-1.0-SNAPSHOT.jar"
+
+# sse 方式
+#spring.ai.mcp.client.sse.connections.weather-sse.url: http://127.0.0.1:8002/
+#spring.ai.mcp.client.sse.connections.weather-sse.sse-endpoint: /sse
+
+# streamable 方式
+#spring.ai.mcp.client.streamable-http.connections.weather-streamable.url: http://127.0.0.1:8003/stream/test/
+#spring.ai.mcp.client.streamable-http.connections.weather-streamable.endpoint: /api/mcp
+
