@@ -25,6 +25,12 @@ public class XxlJobConfig {
     @Value("${xxl.job.accessToken:}")
     private String accessToken;
 
+    @Value("${xxl.job.executor.logpath:./logs/xxl-job/jobhandler}")
+    private String logPath;
+
+    @Value("${xxl.job.executor.logretentiondays:30}")
+    private int logRetentionDays;
+
     @Bean
     public XxlJobSpringExecutor xxlJobExecutor() {
         log.info(">>>>>>>>>>> xxl-job config init.");
@@ -33,6 +39,8 @@ public class XxlJobConfig {
         xxlJobSpringExecutor.setAppname(appname);
         xxlJobSpringExecutor.setAddress(address);
         xxlJobSpringExecutor.setAccessToken(accessToken);
+        xxlJobSpringExecutor.setLogPath(logPath);
+        xxlJobSpringExecutor.setLogRetentionDays(logRetentionDays);
         return xxlJobSpringExecutor;
     }
 }

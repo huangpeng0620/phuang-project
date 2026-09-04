@@ -102,7 +102,7 @@
         </dependency>
         <dependency>
             <groupId>com.phuang</groupId>
-            <artifactId>custom-annotation-common-start</artifactId>
+            <artifactId>HLock-annotation-common-starter</artifactId>
             <version>${custom-annotation-common-start.version}</version>
         </dependency>
         <!--fastjson-->
