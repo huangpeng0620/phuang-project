@@ -3,15 +3,14 @@ package com.phuang.hlock.model;
 import com.phuang.hlock.annotation.HLock;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
-import org.springframework.stereotype.Component;
 
-import javax.annotation.Resource;
-
-@Component
 public class LockFactory {
 
-    @Resource
-    private RedissonClient redissonClient;
+    private final RedissonClient redissonClient;
+
+    public LockFactory(RedissonClient redissonClient) {
+        this.redissonClient = redissonClient;
+    }
 
     public RLock getLock(HLock lock, String key) {
         switch (lock.lockType()) {

@@ -8,13 +8,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.*;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.util.StringUtils;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -25,7 +26,7 @@ import java.util.stream.Collectors;
  * RedissonClient Bean 时，{@link ConditionalOnMissingBean} 会使本配置退让，
  * 从而复用业务项目自己的 Redis 连接和拓扑配置。</p>
  */
-@Configuration
+@AutoConfiguration
 @Slf4j
 @Import({HLockAnnotationAspect.class, LockInfoHandler.class, LockFactory.class})
 @EnableConfigurationProperties(HLockConfigProperties.class)
@@ -191,7 +192,7 @@ public class HLockRedissonConfig {
         serverConfig.setTimeout(connection.getTimeout())
                 .setConnectTimeout(connection.getConnectTimeout())
                 .setRetryAttempts(connection.getRetryAttempts())
-                .setRetryInterval(connection.getRetryInterval())
+                .setRetryDelay(new ConstantDelay(Duration.ofMillis(connection.getRetryInterval())))
                 .setIdleConnectionTimeout(connection.getIdleConnectionTimeout());
     }
 

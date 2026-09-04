@@ -13,23 +13,23 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.redisson.api.RLock;
 import org.springframework.core.annotation.Order;
-import org.springframework.stereotype.Component;
 
-import javax.annotation.Resource;
 import java.lang.reflect.Method;
 import java.util.Objects;
 
 @Aspect
-@Component
 @Slf4j
 @Order(0)//确保比事务注解先执行，分布式锁在事务外
 public class HLockAnnotationAspect {
 
-    @Resource
-    private LockFactory lockFactory;
+    private final LockFactory lockFactory;
 
-    @Resource
-    private LockInfoHandler lockInfoHandler;
+    private final LockInfoHandler lockInfoHandler;
+
+    public HLockAnnotationAspect(LockFactory lockFactory, LockInfoHandler lockInfoHandler) {
+        this.lockFactory = lockFactory;
+        this.lockInfoHandler = lockInfoHandler;
+    }
 
     /**
      * Rlock注解的环绕通知切面

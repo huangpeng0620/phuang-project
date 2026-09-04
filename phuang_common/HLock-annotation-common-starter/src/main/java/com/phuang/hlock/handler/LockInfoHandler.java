@@ -6,17 +6,17 @@ import com.phuang.hlock.config.HLockConfigProperties;
 import com.phuang.hlock.model.LockInfo;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.reflect.MethodSignature;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import javax.annotation.Resource;
 import java.lang.reflect.Method;
 
-@Component
 public class LockInfoHandler {
 
-    @Resource
-    private HLockConfigProperties hLockConfigProperties;
+    private final HLockConfigProperties hLockConfigProperties;
+
+    public LockInfoHandler(HLockConfigProperties hLockConfigProperties) {
+        this.hLockConfigProperties = hLockConfigProperties;
+    }
 
     private static final String LOCK_NAME_PREFIX = "HLOCK";
 
@@ -24,7 +24,7 @@ public class LockInfoHandler {
 
     public LockInfo getLockInfo(JoinPoint joinPoint, HLock hlock) {
         Method method = ((MethodSignature) joinPoint.getSignature()).getMethod();
-        String businessPrefix = StringUtils.isEmpty(hlock.prefixKey()) ? SpElUtils.getMethodKey(method) : hlock.prefixKey();
+        String businessPrefix = StringUtils.hasText(hlock.prefixKey()) ? hlock.prefixKey() : SpElUtils.getMethodKey(method);
         String businessKey = SpElUtils.parseSpEl(method, joinPoint.getArgs(), hlock.key());
         /**
          * 获取key的前缀,为空则使用默认格式:类名_方法名

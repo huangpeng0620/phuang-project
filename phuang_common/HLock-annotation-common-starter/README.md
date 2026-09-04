@@ -26,19 +26,18 @@
 
 ## 2. 环境要求
 
-- JDK 8+；
-- Spring Boot 2.7.x；
+- JDK 17+；
+- Spring Boot 3.5.x；
 - Redis；
-- Maven。
+- Maven 3.6.3+。
 
 项目当前主要依赖：
 
 | 依赖 | 版本 |
 | --- | --- |
-| Spring Boot AutoConfigure | `2.7.4` |
-| Spring Boot AOP | `2.7.4` |
-| Redisson | `3.17.7` |
-| Lombok | `1.18.20` |
+| Spring Boot | `3.5.16` |
+| Redisson | `3.52.0` |
+| Lombok | 由 Spring Boot 依赖管理 |
 
 ## 3. 引入组件
 
@@ -53,12 +52,13 @@ mvn clean install
 ```xml
 <dependency>
     <groupId>com.phuang</groupId>
-    <artifactId>custom-annotation-common-start</artifactId>
+    <artifactId>HLock-annotation-common-starter</artifactId>
     <version>1.0-SNAPSHOT</version>
 </dependency>
 ```
 
-组件通过 `META-INF/spring.factories` 注册自动配置，并自动导入：
+组件通过 `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
+注册 Spring Boot 3 自动配置，并自动导入：
 
 - `HLockAnnotationAspect`；
 - `LockInfoHandler`；
@@ -415,7 +415,7 @@ logging:
 6. Cluster 模式只使用 database 0。
 7. Master-Slave 是固定拓扑，不提供 Sentinel 故障转移能力。
 8. Redis 不可用时，加锁操作可能抛出 Redisson 连接或超时异常。
-9. 当前自动配置机制面向 Spring Boot 2.x，尚未提供 Spring Boot 3 的 `AutoConfiguration.imports`。
+9. 当前版本面向 Spring Boot 3.5.x 和 Java 17+，不再提供 Spring Boot 2.x 的 `spring.factories` 注册方式。
 
 ## 12. 项目结构
 
@@ -444,6 +444,15 @@ src/main/java/com/phuang
 
 ## 13. 开发验证
 
+先确认 Maven 自身运行在 Java 17 或更高版本：
+
+```bash
+mvn -version
+```
+
+输出中的 `Java version` 必须是 17+。如果本机同时安装了多个 JDK，需先将
+`JAVA_HOME` 或 IDE 的 Maven Runner JRE 切换到 JDK 17/21，再执行构建。
+
 执行构建：
 
 ```bash
@@ -467,5 +476,4 @@ mvn clean test
 - 支持不依赖参数名的 `#p0`、`#a0` SpEL 写法；
 - 增加配置元数据，让 IDE 自动提示 `redis.hlock.*`；
 - 增加单元测试、自动配置测试和 Redis 集成测试；
-- 增加 Spring Boot 3 兼容版本；
 - 增加可配置的获取锁失败处理器和监控指标。
