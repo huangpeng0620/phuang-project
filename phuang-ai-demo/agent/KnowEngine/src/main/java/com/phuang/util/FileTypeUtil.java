@@ -3,10 +3,10 @@ package com.phuang.util;
 import com.phuang.model.enums.FileType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.Tika;
+import org.apache.tika.io.TikaInputStream;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Locale;
 
 @Slf4j
@@ -20,7 +20,7 @@ public class FileTypeUtil {
         }
 
         FileType extensionType = getFileType(fileName);
-        try (InputStream inputStream = file.getInputStream()) {
+        try (TikaInputStream inputStream = TikaInputStream.get(file.getInputStream())) {
             String mimeType = TIKA.detect(inputStream, fileName);
             FileType detectedType = fromMimeType(mimeType);
 

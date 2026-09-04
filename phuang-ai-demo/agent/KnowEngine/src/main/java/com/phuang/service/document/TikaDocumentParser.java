@@ -1,11 +1,19 @@
 package com.phuang.service.document;
 
-import org.apache.tika.Tika;
+import org.apache.tika.exception.TikaException;
+import org.apache.tika.exception.WriteLimitReachedException;
+import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.metadata.HttpHeaders;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
+import org.apache.tika.parser.AutoDetectParser;
+import org.apache.tika.parser.ParseContext;
+import org.apache.tika.parser.Parser;
+import org.apache.tika.sax.BodyContentHandler;
+import org.apache.tika.sax.WriteOutContentHandler;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.xml.sax.SAXException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,7 +24,8 @@ import java.io.InputStream;
 @Component
 public class TikaDocumentParser {
 
-    private final Tika tika = new Tika();
+    private final Parser parser = new AutoDetectParser();
+
     private final int maxTextLength;
 
     public TikaDocumentParser(@Value("${tika.max-text-length:5000000}") int maxTextLength) {
@@ -36,8 +45,19 @@ public class TikaDocumentParser {
             metadata.set(TikaCoreProperties.RESOURCE_NAME_KEY, resourceName);
         }
 
-        String text = tika.parseToString(inputStream, metadata, maxTextLength);
-        return new ParsedDocument(normalizeText(text), metadata.get(HttpHeaders.CONTENT_TYPE));
+        WriteOutContentHandler textHandler = new WriteOutContentHandler(maxTextLength);
+        ParseContext parseContext = new ParseContext();
+        parseContext.set(Parser.class, parser);
+
+        try (TikaInputStream tikaInputStream = TikaInputStream.get(inputStream)) {
+            parser.parse(tikaInputStream, new BodyContentHandler(textHandler), metadata, parseContext);
+        } catch (SAXException e) {
+            if (WriteLimitReachedException.isWriteLimitReached(e)) {
+                throw new TikaException("Tika 提取文本超过上限: " + maxTextLength, e);
+            }
+            throw new TikaException("Tika 解析文本失败", e);
+        }
+        return new ParsedDocument(normalizeText(textHandler.toString()), metadata.get(HttpHeaders.CONTENT_TYPE));
     }
 
     private String normalizeText(String text) {

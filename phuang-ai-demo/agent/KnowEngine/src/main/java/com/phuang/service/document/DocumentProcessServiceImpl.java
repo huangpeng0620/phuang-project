@@ -83,7 +83,7 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
      * @param documentUploadParam
      * @param uploadUser
      */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     @HLock(prefixKey = "document_upload", key = "#uploadUser", waitTime = 0)
     @Override
     public Boolean upload(DocumentUploadParam documentUploadParam, String uploadUser) throws Exception {
