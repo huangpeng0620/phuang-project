@@ -20,7 +20,7 @@ import java.util.EnumSet;
 import java.util.Set;
 
 /**
- * Word、PowerPoint、HTML 等通用文档的 Tika 转换处理器
+ * Word、PowerPoint、HTML 等通用文档的 Tika 转换处理器1
  */
 @Slf4j
 @Service
@@ -50,35 +50,38 @@ public class TikaProcessServiceImpl implements FileProcessService {
     private KnowledgeDocumentVersionService knowledgeDocumentVersionService;
 
     @Override
+    public boolean supports(FileType fileType, KnowledgeBaseType knowledgeBaseType) {
+        return knowledgeBaseType == KnowledgeBaseType.DOCUMENT_SEARCH
+                && fileType != null
+                && SUPPORTED_TYPES.contains(fileType);
+    }
+
+    @Override
     public String processDocument(KnowledgeDocumentEntity document, String fileMinioUrl, InputStream inputStream) {
-        log.info("开始使用 Tika 解析文档, documentId={}, versionId={}",
-                document.getDocId(), document.getCurrentVersionId());
-        knowledgeDocumentService.advanceDocumentAndVersionStatus(
-                document.getDocId(), document.getCurrentVersionId(), DocumentStatus.CONVERTING);
+        log.info("开始使用 Tika 解析文档, documentId={}, versionId={}", document.getDocId(), document.getCurrentVersionId());
+
+        //更新文档状态至【转换中】
+        knowledgeDocumentService.advanceDocumentAndVersionStatus(document.getDocId(), document.getCurrentVersionId(), DocumentStatus.CONVERTING);
 
         try (inputStream) {
-            TikaDocumentParser.ParsedDocument parsedDocument =
-                    tikaDocumentParser.parse(inputStream, extractResourceName(fileMinioUrl));
+            TikaDocumentParser.ParsedDocument parsedDocument = tikaDocumentParser.parse(inputStream, extractResourceName(fileMinioUrl));
             if (parsedDocument.text().isBlank()) {
                 throw new BusinessException("Tika 未从文档中提取到可用文本");
             }
 
-            String convertedObjectName = CONVERTED_FILE_DIR
-                    + document.getDocId() + "/" + document.getCurrentVersionId() + ".txt";
-            String convertedUrl = fileStorageService.uploadFile(
-                    convertedObjectName,
-                    parsedDocument.text().getBytes(StandardCharsets.UTF_8),
-                    ContentType.TEXT_PLAIN);
+            //转换并获取文档 url
+            String convertedObjectName = CONVERTED_FILE_DIR + document.getDocId() + "/" + document.getCurrentVersionId() + ".txt";
+            String convertedUrl = fileStorageService.uploadFile(convertedObjectName, parsedDocument.text().getBytes(StandardCharsets.UTF_8), ContentType.TEXT_PLAIN);
 
-            knowledgeDocumentService.advanceDocumentAndVersionStatus(
-                    document.getDocId(), document.getCurrentVersionId(), DocumentStatus.CONVERTED);
-            log.info("Tika 文档解析完成, documentId={}, versionId={}, mediaType={}, convertedUrl={}",
-                    document.getDocId(), document.getCurrentVersionId(), parsedDocument.mediaType(), convertedUrl);
+            //更新文档状态至【转换完成】
+            knowledgeDocumentService.advanceDocumentAndVersionStatus(document.getDocId(), document.getCurrentVersionId(), DocumentStatus.CONVERTED);
+            log.info("Tika 文档解析完成, documentId={}, versionId={}, mediaType={}, convertedUrl={}", document.getDocId(), document.getCurrentVersionId(), parsedDocument.mediaType(), convertedUrl);
+
             return convertedUrl;
         } catch (Exception e) {
+            //文档状态回滚
             resetStatus(document);
-            log.error("Tika 文档解析失败, documentId={}, versionId={}",
-                    document.getDocId(), document.getCurrentVersionId(), e);
+            log.error("Tika 文档解析失败, documentId={}, versionId={}", document.getDocId(), document.getCurrentVersionId(), e);
             if (e instanceof BusinessException businessException) {
                 throw businessException;
             }
@@ -86,17 +89,8 @@ public class TikaProcessServiceImpl implements FileProcessService {
         }
     }
 
-    @Override
-    public boolean supports(FileType fileType, KnowledgeBaseType knowledgeBaseType) {
-        return knowledgeBaseType == KnowledgeBaseType.DOCUMENT_SEARCH
-                && fileType != null
-                && SUPPORTED_TYPES.contains(fileType);
-    }
-
     private void resetStatus(KnowledgeDocumentEntity document) {
         try {
-            document.setStatus(DocumentStatus.UPLOADED);
-            knowledgeDocumentService.updateById(document);
             var version = knowledgeDocumentVersionService.getById(document.getCurrentVersionId());
             if (version != null) {
                 version.setStatus(DocumentStatus.UPLOADED);
