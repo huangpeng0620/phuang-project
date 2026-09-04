@@ -1,0 +1,28 @@
+server:
+  port: 8888
+
+#arthas探针端口号
+arthas:
+  server:
+    port: 7777
+
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  application:
+    name: arthas-tunnel-server
+  cloud:
+    nacos:
+      config:
+        server-addr: localhost:8848
+        #amespace: testing-4
+        group: ${spring.application.name}
+        name: application.yaml
+        refresh-enabled: true
+        file-extension: yaml
+      discovery:
+        server-addr: ${spring.cloud.nacos.config.server-addr}
+        #namespace: testing-4
+        #enabled: false
+
+

@@ -1,0 +1,14 @@
+server:
+  port: 8081
+
+redis:
+  hlock:
+    server-type: SINGLE_SERVER
+    single-server:
+      host: 8.136.10.85
+      port: 6379
+      password: Hya260511
+
+logging:
+  level:
+    com.phuang.hlock: DEBUG
