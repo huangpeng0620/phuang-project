@@ -55,7 +55,7 @@ public class FileStorageService {
      * @throws Exception
      */
     public String uploadFile(MultipartFile file, String objectName) throws Exception {
-        createBucketIfNotExists(true);// 这里可根据你自己的情况改成false，如果改成false，需要在这个方法最后调一次getPresignedUrl
+        createBucketIfNotExists(true);
         minioClient.putObject(PutObjectArgs.builder()
                 .bucket(bucketName)
                 .object(objectName)

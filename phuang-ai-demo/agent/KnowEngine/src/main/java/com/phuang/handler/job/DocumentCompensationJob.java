@@ -94,7 +94,7 @@ public class DocumentCompensationJob {
     }
 
     /**
-     * 上传文档异步处理补偿任务。
+     * 上传文档异步处理补偿任务
      *
      * <p>补偿事件丢失、转换异常和最终信息回写失败的版本。通过延迟窗口避开仍在正常执行的
      * 异步监听器，具体处理过程与 onDocumentUploaded 共用同一个加锁业务入口。</p>
@@ -110,29 +110,36 @@ public class DocumentCompensationJob {
 
         log.info("========== 开始执行上传文档补偿任务，延迟窗口: {} 分钟，批次大小: {} ==========", delayMinutes, batchSize);
         try {
-            LambdaQueryWrapper<KnowledgeDocumentVersionEntity> queryWrapper = new LambdaQueryWrapper<KnowledgeDocumentVersionEntity>()
-                    .and(statusWrapper -> statusWrapper.in(KnowledgeDocumentVersionEntity::getStatus,
+            LambdaQueryWrapper<KnowledgeDocumentEntity> queryWrapper = new LambdaQueryWrapper<KnowledgeDocumentEntity>()
+                    .and(statusWrapper -> statusWrapper
+                            .in(KnowledgeDocumentEntity::getStatus,
                                     DocumentStatus.UPLOADED, DocumentStatus.CONVERTING)
                             .or(convertedWrapper -> convertedWrapper
-                                    .in(KnowledgeDocumentVersionEntity::getStatus,
+                                    .in(KnowledgeDocumentEntity::getStatus,
                                             DocumentStatus.CONVERTED, DocumentStatus.STORED)
-                                    .and(urlWrapper -> urlWrapper
-                                            .isNull(KnowledgeDocumentVersionEntity::getConvertedDocUrl)
-                                            .or()
-                                            .eq(KnowledgeDocumentVersionEntity::getConvertedDocUrl, ""))))
-                    .lt(KnowledgeDocumentVersionEntity::getUpdatedAt, expirationTime)
-                    .orderByAsc(KnowledgeDocumentVersionEntity::getUpdatedAt);
+                                    .isNull(KnowledgeDocumentEntity::getCurrentVersionId)))
+                    .lt(KnowledgeDocumentEntity::getUpdatedAt, expirationTime)
+                    .orderByAsc(KnowledgeDocumentEntity::getUpdatedAt);
 
-            List<KnowledgeDocumentVersionEntity> candidates = knowledgeDocumentVersionService.page(new Page<>(1, batchSize, false), queryWrapper).getRecords();
+            List<KnowledgeDocumentEntity> candidates = knowledgeDocumentService
+                    .page(new Page<>(1, batchSize, false), queryWrapper)
+                    .getRecords();
             if (CollectionUtil.isEmpty(candidates)) {
                 log.info("没有发现需要补偿的上传文档");
                 return;
             }
-            log.info("发现 {} 个需要补偿的文档版本", candidates.size());
-            for (KnowledgeDocumentVersionEntity documentVersion : candidates) {
+            log.info("发现 {} 个需要补偿的文档", candidates.size());
+            for (KnowledgeDocumentEntity document : candidates) {
                 try {
+                    KnowledgeDocumentVersionEntity documentVersion = resolveCompensationVersion(document);
+                    if (documentVersion == null) {
+                        skippedCount++;
+                        log.warn("未找到可补偿的文档版本，跳过, documentId={}", document.getDocId());
+                        continue;
+                    }
                     //完成上传文档的转换和数据库回写
-                    boolean success = documentProcessService.completeUploadedDocumentProcessing(documentVersion.getDocId(), documentVersion.getVersionId());
+                    boolean success = documentProcessService.completeUploadedDocumentProcessing(
+                            document.getDocId(), documentVersion.getVersionId());
                     if (success) {
                         successCount++;
                     } else {
@@ -140,13 +147,32 @@ public class DocumentCompensationJob {
                     }
                 } catch (Exception e) {
                     failedCount++;
-                    log.error("上传文档补偿失败, documentId={}, versionId={}", documentVersion.getDocId(), documentVersion.getVersionId(), e);
+                    log.error("上传文档补偿失败, documentId={}", document.getDocId(), e);
                 }
             }
         } catch (Exception e) {
             log.error("上传文档补偿任务执行异常", e);
         }
         log.info("========== 上传文档补偿任务完成，成功: {}，跳过: {}，失败: {} ==========", successCount, skippedCount, failedCount);
+    }
+
+    private KnowledgeDocumentVersionEntity resolveCompensationVersion(KnowledgeDocumentEntity document) {
+        if (document.getCurrentVersionId() != null) {
+            return knowledgeDocumentVersionService.getById(document.getCurrentVersionId());
+        }
+
+        return knowledgeDocumentVersionService.page(
+                        new Page<>(1, 1, false),
+                        new LambdaQueryWrapper<KnowledgeDocumentVersionEntity>()
+                                .eq(KnowledgeDocumentVersionEntity::getDocId, document.getDocId())
+                                .in(KnowledgeDocumentVersionEntity::getStatus,
+                                        DocumentStatus.UPLOADED, DocumentStatus.CONVERTING,
+                                        DocumentStatus.CONVERTED, DocumentStatus.STORED)
+                                .orderByDesc(KnowledgeDocumentVersionEntity::getCreatedAt))
+                .getRecords()
+                .stream()
+                .findFirst()
+                .orElse(null);
     }
 
     /**

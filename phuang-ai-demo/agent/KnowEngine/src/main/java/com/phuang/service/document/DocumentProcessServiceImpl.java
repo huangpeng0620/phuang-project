@@ -84,8 +84,8 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
      * @param documentUploadParam
      * @param uploadUser
      */
-    @Transactional(rollbackFor = Exception.class)
     @HLock(prefixKey = "document_upload", key = "#uploadUser", waitTime = 0)
+    @Transactional(rollbackFor = Exception.class)
     @Override
     public Boolean upload(DocumentUploadParam documentUploadParam, String uploadUser) throws Exception {
         // 计算文件内容hash，用于去重
@@ -209,11 +209,14 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
 
         // 已完整回写时直接返回，保证监听器和补偿任务重复执行时具备幂等性
         if (documentVersionId.equals(document.getCurrentVersionId()) && CharSequenceUtil.isNotBlank(documentVersion.getConvertedDocUrl())) {
+            DocumentStatus targetStatus = document.getKnowledgeBaseType() == KnowledgeBaseType.DOCUMENT_SEARCH
+                    ? DocumentStatus.CONVERTED : DocumentStatus.STORED;
+            knowledgeDocumentService.advanceDocumentAndVersionStatus(documentId, documentVersionId, targetStatus);
             log.info("上传文档已经处理完成，跳过重复执行, documentId={}, versionId={}", documentId, documentVersionId);
             return Boolean.TRUE;
         }
 
-        // 当前文档已激活其他版本时不自动覆盖，避免补偿历史版本导致版本回退。\
+        // 当前文档已激活其他版本时不自动覆盖，避免补偿历史版本导致版本回退。
         if (document.getCurrentVersionId() != null && !documentVersionId.equals(document.getCurrentVersionId())) {
             log.warn("文档已存在其他当前版本，跳过上传补偿, documentId={}, currentVersionId={}, pendingVersionId={}", documentId, document.getCurrentVersionId(), documentVersionId);
             return Boolean.FALSE;
