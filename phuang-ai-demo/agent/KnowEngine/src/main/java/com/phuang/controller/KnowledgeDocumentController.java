@@ -1,6 +1,5 @@
 package com.phuang.controller;
 
-import com.phuang.hlock.annotation.HLock;
 import com.phuang.model.dto.DocumentSplitParam;
 import com.phuang.model.dto.DocumentUploadParam;
 import com.phuang.service.KnowledgeDocumentService;
@@ -39,7 +38,6 @@ public class KnowledgeDocumentController {
      * @throws Exception
      */
     @PostMapping("/upload")
-    @HLock(prefixKey = "document_upload", key = "#uploadUser", waitTime = 0)
     public Boolean uploadFile(@RequestParam("uploadUser") String uploadUser,
                               @RequestParam("file") MultipartFile file,
                               @RequestParam("title") String title,

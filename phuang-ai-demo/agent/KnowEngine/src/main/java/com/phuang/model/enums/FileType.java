@@ -10,7 +10,11 @@ public enum FileType {
     HTML("html"),
     MARKDOWN("markdown"),
     CSV("csv"),
-    EXCEL("excel");
+    EXCEL("excel"),
+    PPT("ppt"),
+    RTF("rtf"),
+    ODT("odt"),
+    EPUB("epub");
 
     private final String type;
 

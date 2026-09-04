@@ -11,6 +11,9 @@ spring.servlet.multipart.enabled: true
 spring.servlet.multipart.max-file-size: 100MB
 spring.servlet.multipart.max-request-size: 100MB
 
+# Tika 正文提取上限，防止异常文档产生过大的内存占用
+tika.max-text-length: 5000000
+
 # langchain4j 模型配置
 langchain4j.open-ai.chat-model.api-key: @dashscope.api.key@
 langchain4j.open-ai.chat-model.model-name: deepseek-r1

@@ -15,6 +15,8 @@
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <custom-annotation-common-start.version>1.0-SNAPSHOT</custom-annotation-common-start.version>
+        <tika.version>3.2.3</tika.version>
+        <commons-compress.version>1.28.0</commons-compress.version>
     </properties>
 
     <dependencies>
@@ -68,11 +70,23 @@
             <artifactId>minio</artifactId>
             <version>8.5.1</version>
         </dependency>
+        <!-- MinIO 传递的旧版本与 Tika/POI 不兼容，显式统一到 Tika 需要的版本 -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+            <version>${commons-compress.version}</version>
+        </dependency>
         <!-- Apache Tika - 文件类型检测 -->
         <dependency>
             <groupId>org.apache.tika</groupId>
             <artifactId>tika-core</artifactId>
-            <version>2.9.1</version>
+            <version>${tika.version}</version>
+        </dependency>
+        <!-- Apache Tika - Word、PowerPoint、HTML 等文件的正文解析器 -->
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-parsers-standard-package</artifactId>
+            <version>${tika.version}</version>
         </dependency>
         <!--easyexcel-->
         <dependency>

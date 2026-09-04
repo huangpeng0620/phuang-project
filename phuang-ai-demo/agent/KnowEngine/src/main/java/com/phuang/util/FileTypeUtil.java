@@ -7,194 +7,127 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Locale;
 
 @Slf4j
 public class FileTypeUtil {
 
-    private static final Tika tika = new Tika();
+    private static final Tika TIKA = new Tika();
 
     public static FileType getFileType(String fileName, MultipartFile file) {
         if (file == null) {
             return null;
         }
 
-        if (isPdfFile(fileName) || isPdfContent(file)) {
-            return FileType.PDF;
-        }
-        if (isCsvFile(fileName)) {
-            return FileType.CSV;
-        }
-        if (isExcelFile(fileName) || isExcelFile(file)) {
-            return FileType.EXCEL;
-        }
+        FileType extensionType = getFileType(fileName);
+        try (InputStream inputStream = file.getInputStream()) {
+            String mimeType = TIKA.detect(inputStream, fileName);
+            FileType detectedType = fromMimeType(mimeType);
 
-        if (isDocFile(fileName) || isDocFile(file)) {
-            return FileType.DOC;
+            // Tika 无法仅靠内容可靠地区分普通文本、Markdown 和 CSV，此时以后缀为准。
+            if (detectedType == FileType.TXT && isPlainTextFamily(extensionType)) {
+                return extensionType;
+            }
+            if (detectedType != null) {
+                if (extensionType != null && extensionType != detectedType) {
+                    log.warn("文件扩展名与内容类型不一致, fileName={}, extensionType={}, mimeType={}",
+                            fileName, extensionType, mimeType);
+                }
+                return detectedType;
+            }
+        } catch (IOException e) {
+            log.error("文件类型检测失败, fileName={}: {}", fileName, e.getMessage());
         }
-
-        if (isMarkdownFile(fileName) || isMarkdownFile(file)) {
-            return FileType.MARKDOWN;
-        }
-
-        if (isTxtFile(fileName) || isTxtFile(file)) {
-            return FileType.TXT;
-        }
-
-        return null;
+        return extensionType;
     }
 
     public static FileType getFileType(String fileName) {
         if (fileName == null) {
             return null;
         }
+        String normalizedFileName = fileName.toLowerCase(Locale.ROOT);
 
-        if (isPdfFile(fileName)) {
+        if (hasExtension(normalizedFileName, ".pdf")) {
             return FileType.PDF;
         }
-        if (isCsvFile(fileName)) {
+        if (hasExtension(normalizedFileName, ".csv", ".tsv")) {
             return FileType.CSV;
         }
-        if (isExcelFile(fileName)) {
+        if (hasExtension(normalizedFileName, ".xlsx", ".xls", ".xlsm", ".xlsb")) {
             return FileType.EXCEL;
         }
-        if (isDocFile(fileName)) {
+        if (hasExtension(normalizedFileName, ".doc", ".docx", ".docm", ".dot", ".dotx", ".dotm")) {
             return FileType.DOC;
         }
-
-        if (isTxtFile(fileName)) {
+        if (hasExtension(normalizedFileName, ".ppt", ".pptx", ".pptm", ".pps", ".ppsx")) {
+            return FileType.PPT;
+        }
+        if (hasExtension(normalizedFileName, ".html", ".htm", ".xhtml")) {
+            return FileType.HTML;
+        }
+        if (hasExtension(normalizedFileName, ".rtf")) {
+            return FileType.RTF;
+        }
+        if (hasExtension(normalizedFileName, ".odt")) {
+            return FileType.ODT;
+        }
+        if (hasExtension(normalizedFileName, ".epub")) {
+            return FileType.EPUB;
+        }
+        if (hasExtension(normalizedFileName, ".txt")) {
             return FileType.TXT;
         }
-        if (isMarkdownFile(fileName)) {
+        if (hasExtension(normalizedFileName, ".md", ".markdown")) {
             return FileType.MARKDOWN;
         }
         return null;
     }
 
-
-    /**
-     * 通过后缀名判断是否为 PDF 文件
-     */
-    private static boolean isPdfFile(String fileName) {
-        if (fileName == null || fileName.isEmpty()) {
-            return false;
+    private static FileType fromMimeType(String mimeType) {
+        if (mimeType == null) {
+            return null;
         }
-        return fileName.toLowerCase().endsWith(".pdf");
+        String normalizedMimeType = mimeType.toLowerCase(Locale.ROOT).split(";", 2)[0].trim();
+        return switch (normalizedMimeType) {
+            case "application/pdf" -> FileType.PDF;
+            case "text/csv", "text/tab-separated-values" -> FileType.CSV;
+            case "application/vnd.ms-excel",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/vnd.ms-excel.sheet.macroenabled.12",
+                    "application/vnd.ms-excel.sheet.binary.macroenabled.12" -> FileType.EXCEL;
+            case "application/msword",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.template",
+                    "application/vnd.ms-word.document.macroenabled.12",
+                    "application/vnd.ms-word.template.macroenabled.12" -> FileType.DOC;
+            case "application/vnd.ms-powerpoint",
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    "application/vnd.openxmlformats-officedocument.presentationml.slideshow",
+                    "application/vnd.openxmlformats-officedocument.presentationml.template",
+                    "application/vnd.ms-powerpoint.presentation.macroenabled.12",
+                    "application/vnd.ms-powerpoint.slideshow.macroenabled.12" -> FileType.PPT;
+            case "text/html", "application/xhtml+xml" -> FileType.HTML;
+            case "application/rtf", "text/rtf" -> FileType.RTF;
+            case "application/vnd.oasis.opendocument.text",
+                    "application/x-vnd.oasis.opendocument.text" -> FileType.ODT;
+            case "application/epub+zip" -> FileType.EPUB;
+            case "text/markdown", "text/x-markdown", "application/markdown" -> FileType.MARKDOWN;
+            case "text/plain", "application/txt" -> FileType.TXT;
+            default -> null;
+        };
     }
 
-    /**
-     * 通过 Apache Tika 检测文件内容类型判断是否为 PDF 文件
-     */
-    private static boolean isPdfContent(MultipartFile file) {
-        try (InputStream is = file.getInputStream()) {
-            String mimeType = tika.detect(is);
-            return "application/pdf".equals(mimeType);
-        } catch (IOException e) {
-            log.error("文件类型检测失败: {}", e.getMessage());
-            return false;
-        }
+    private static boolean isPlainTextFamily(FileType fileType) {
+        return fileType == FileType.TXT || fileType == FileType.MARKDOWN || fileType == FileType.CSV;
     }
 
-    private static boolean isExcelFile(MultipartFile file) {
-        try (InputStream is = file.getInputStream()) {
-            String mimeType = tika.detect(is);
-            return mimeType.equals("application/vnd.ms-excel") ||
-                    mimeType.equals("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        } catch (IOException e) {
-            log.error("文件类型检测失败: {}", e.getMessage());
-            return false;
+    private static boolean hasExtension(String fileName, String... extensions) {
+        for (String extension : extensions) {
+            if (fileName.endsWith(extension)) {
+                return true;
+            }
         }
-    }
-
-    private static boolean isDocFile(MultipartFile file) {
-        try (InputStream is = file.getInputStream()) {
-            String mimeType = tika.detect(is);
-            return mimeType.equals("application/msword") ||
-                    mimeType.equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-        } catch (IOException e) {
-            log.error("文件类型检测失败: {}", e.getMessage());
-            return false;
-        }
-    }
-
-    private static boolean isTxtFile(MultipartFile file) {
-        try (InputStream is = file.getInputStream()) {
-            String mimeType = tika.detect(is);
-            return mimeType.equals("text/plain") ||
-                    mimeType.equals("application/txt");
-        } catch (IOException e) {
-            log.error("文件类型检测失败: {}", e.getMessage());
-            return false;
-        }
-    }
-
-    private static boolean isMarkdownFile(MultipartFile file) {
-        try (InputStream is = file.getInputStream()) {
-            String mimeType = tika.detect(is);
-            return mimeType.equals("text/plain") ||
-                    mimeType.equals("application/markdown");
-        } catch (IOException e) {
-            log.error("文件类型检测失败: {}", e.getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * 通过后缀名判断是否为 Excel 文件
-     */
-    private static boolean isExcelFile(String fileName) {
-        if (fileName == null || fileName.isEmpty()) {
-            return false;
-        }
-        return fileName.toLowerCase().endsWith(".xlsx") || fileName.toLowerCase().endsWith(".xls") || fileName.toLowerCase().endsWith(".csv");
-    }
-
-    /**
-     * 通过后缀名判断是否为 Word 文件
-     *
-     * @param fileName
-     * @return
-     */
-    private static boolean isDocFile(String fileName) {
-        if (fileName == null || fileName.isEmpty()) {
-            return false;
-        }
-        return fileName.toLowerCase().endsWith(".docx") || fileName.toLowerCase().endsWith(".doc");
-    }
-
-    /**
-     * 通过后缀名判断是否为 markdown 文件
-     *
-     * @param fileName
-     * @return
-     */
-    private static boolean isMarkdownFile(String fileName) {
-        if (fileName == null || fileName.isEmpty()) {
-            return false;
-        }
-        return fileName.toLowerCase().endsWith(".md");
-    }
-
-    /**
-     * 通过后缀名判断是否为 txt 文件
-     *
-     * @param fileName
-     * @return
-     */
-    private static boolean isTxtFile(String fileName) {
-        if (fileName == null || fileName.isEmpty()) {
-            return false;
-        }
-        return fileName.toLowerCase().endsWith(".txt");
-    }
-
-    /**
-     * 通过后缀名判断是否为 CSV 文件
-     */
-    private static boolean isCsvFile(String fileName) {
-        if (fileName == null || fileName.isEmpty()) {
-            return false;
-        }
-        return fileName.toLowerCase().endsWith(".csv");
+        return false;
     }
 
 }

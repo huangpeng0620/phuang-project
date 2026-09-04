@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.phuang.handler.event.DocumentChunkedEvent;
 import com.phuang.handler.splitter.DocumentSplitterFactory;
 import com.phuang.handler.splitter.ExcelSplitter;
+import com.phuang.hlock.annotation.HLock;
 import com.phuang.model.constant.MetadataKeyConstant;
 import com.phuang.model.dto.DocumentSplitParam;
 import com.phuang.model.dto.DocumentUploadParam;
@@ -33,6 +34,7 @@ import org.apache.commons.compress.utils.Lists;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.Assert;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -81,7 +83,8 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
      * @param documentUploadParam
      * @param uploadUser
      */
-    //添加分布式锁 todo
+    @Transactional
+    @HLock(prefixKey = "document_upload", key = "#uploadUser", waitTime = 0)
     @Override
     public Boolean upload(DocumentUploadParam documentUploadParam, String uploadUser) throws Exception {
         // 计算文件内容hash，用于去重
@@ -115,6 +118,7 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
                 .contentHash(contentHash)
                 .uploadUser(uploadUser)
                 .status(DocumentStatus.UPLOADED)
+                .version(documentUploadParam.version())
                 .build();
         knowledgeDocumentVersionService.save(documentVersionEntity);
         knowledgeDocumentEntity.setCurrentVersionId(documentVersionEntity.getVersionId());
