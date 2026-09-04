@@ -18,6 +18,8 @@ public interface DocumentProcessService {
 
     Boolean uploadNewVersion(Long docId, String version, MultipartFile file, String uploadUser, String changelog) throws Exception;
 
+    Boolean completeUploadedDocumentProcessing(Long documentId, Long documentVersionId) throws Exception;
+
     Integer split(DocumentSplitParam documentSplitParam);
 
     Boolean embedAndStore(KnowledgeDocumentVersionEntity documentVersion);

@@ -59,6 +59,10 @@ xxl.job.admin.addresses: http://8.136.10.85:8080/xxl-job-admin
 xxl.job.accessToken: default_token
 xxl.job.executor.appname: know-engine-executor
 
+# 上传异步处理补偿：只处理超过延迟窗口的异常版本，每次最多处理 100 条
+document.upload-compensation.delay-minutes: 10
+document.upload-compensation.batch-size: 100
+
 # redis 分布式锁配置
 redis.hlock.server-type: SINGLE_SERVER
 redis.hlock.single-server.host: 8.136.10.85

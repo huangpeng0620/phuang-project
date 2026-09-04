@@ -90,6 +90,28 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
     }
 
     /**
+     * 原子完成上传后的数据库回写，避免版本 URL 已更新但当前版本 ID 更新失败
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void completeUploadProcessing(Long docId, Long versionId, String convertedDocUrl) {
+        KnowledgeDocumentEntity document = this.getById(docId);
+        Assert.notNull(document, "文档不存在: docId=" + docId);
+
+        KnowledgeDocumentVersionEntity documentVersion = knowledgeDocumentVersionService.getById(versionId);
+        Assert.notNull(documentVersion, "版本记录不存在: versionId=" + versionId);
+        Assert.isTrue(docId.equals(documentVersion.getDocId()), "版本不属于该文档");
+
+        documentVersion.setConvertedDocUrl(convertedDocUrl);
+        boolean versionUpdated = knowledgeDocumentVersionService.updateById(documentVersion);
+        Assert.isTrue(versionUpdated, "转换后文档URL更新失败: versionId=" + versionId);
+
+        document.setCurrentVersionId(versionId);
+        boolean documentUpdated = this.updateById(document);
+        Assert.isTrue(documentUpdated, "当前文档版本更新失败: docId=" + docId);
+    }
+
+    /**
      * 让指定版本生效（重新向量化）：
      * 1. 校验版本状态必须为 CHUNKED
      * 2. 对该版本下所有 STORED 且未向量化的分段分批 embed 并写入 ES

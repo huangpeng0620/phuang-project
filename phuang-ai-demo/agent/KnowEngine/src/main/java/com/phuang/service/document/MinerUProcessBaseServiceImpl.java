@@ -36,7 +36,7 @@ public abstract class MinerUProcessBaseServiceImpl implements FileProcessService
      *
      * @param document 文档对象
      */
-    public String processDocument(KnowledgeDocumentEntity document, String fileMinioUrl, InputStream inputStream) throws Exception {
+    public String processDocument(KnowledgeDocumentEntity document, String fileMinioUrl, InputStream inputStream)  {
         log.info("开始处理文档转换为 Markdown,documentId:{}", document.getDocTitle());
         try {
             //更新文档状态至【转换中】

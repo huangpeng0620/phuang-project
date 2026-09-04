@@ -17,6 +17,8 @@ public interface KnowledgeDocumentService extends IService<KnowledgeDocumentEnti
 
     Boolean advanceDocumentAndVersionStatus(Long docId, Long version, DocumentStatus targetStatus);
 
+    void completeUploadProcessing(Long docId, Long versionId, String convertedDocUrl);
+
     void activateVersion(Long versionId);
 
     void deactivateVersion(Long versionId);

@@ -32,6 +32,24 @@ public class DocumentEventListener {
     private KnowledgeDocumentVersionService knowledgeDocumentVersionService;
 
     /**
+     * 上传事务提交后异步完成文档转换和版本信息回写
+     */
+    @Async("eventListenerExecutor")
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onDocumentUploaded(DocumentUploadedEvent event) {
+        Long documentId = event.getDocumentId();
+        Long documentVersionId = event.getDocumentVersionId();
+        log.info("收到文档上传完成事件，开始异步处理, documentId={}, versionId={}", documentId, documentVersionId);
+        try {
+            boolean success = documentProcessService.completeUploadedDocumentProcessing(documentId, documentVersionId);
+            Assert.isTrue(success, "上传文档异步处理未完成: documentId=" + documentId);
+            log.info("上传文档异步处理完成, documentId={}, versionId={}", documentId, documentVersionId);
+        } catch (Exception e) {
+            log.error("上传文档异步处理失败, documentId={}, versionId={}", documentId, documentVersionId, e);
+        }
+    }
+
+    /**
      * 监听文档CHUNKED事件，触发向量嵌入流程
      *
      * <p>使用 {@code @TransactionalEventListener(phase = AFTER_COMMIT)} 确保监听器在

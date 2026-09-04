@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.phuang.handler.event.DocumentChunkedEvent;
+import com.phuang.handler.event.DocumentUploadedEvent;
 import com.phuang.handler.splitter.DocumentSplitterFactory;
 import com.phuang.handler.splitter.ExcelSplitter;
 import com.phuang.hlock.annotation.HLock;
@@ -103,7 +104,7 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
             log.info("文件上传成功,originalFileName:{},objectName:{}", fileName, objectName);
         } catch (Exception e) {
             log.error("文件上传失败,originalFileName:{},objectName:{}", fileName, objectName, e);
-            return Boolean.FALSE;
+            throw new BusinessException("文件上传失败");
         }
 
         //构建并保存文档记录
@@ -121,20 +122,10 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
                 .version(documentUploadParam.version())
                 .build();
         knowledgeDocumentVersionService.save(documentVersionEntity);
-        knowledgeDocumentEntity.setCurrentVersionId(documentVersionEntity.getVersionId());
 
-        // 处理文档（转换/存储），获取转换后的文档 URL
-        String convertedDocUrl = processFile(fileName, documentUploadParam.file(), knowledgeDocumentEntity, docUrl);
-
-        //更新文档版本记录中转换后的文档 URL
-        documentVersionEntity = knowledgeDocumentVersionService.getById(documentVersionEntity.getVersionId());
-        documentVersionEntity.setConvertedDocUrl(convertedDocUrl);
-        knowledgeDocumentVersionService.updateById(documentVersionEntity);
-
-        //更新文档版本ID
-        knowledgeDocumentEntity = knowledgeDocumentService.getById(knowledgeDocumentEntity.getDocId());
-        knowledgeDocumentEntity.setCurrentVersionId(documentVersionEntity.getVersionId());
-        knowledgeDocumentService.updateById(knowledgeDocumentEntity);
+        // 事务提交后异步执行文档转换和版本信息回写
+        eventPublisher.publishEvent(new DocumentUploadedEvent(
+                this, knowledgeDocumentEntity.getDocId(), documentVersionEntity.getVersionId()));
         return Boolean.TRUE;
     }
 
@@ -197,10 +188,71 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
      * 处理文档（转换/存储）
      */
     private String processFile(String fileName, MultipartFile file, KnowledgeDocumentEntity document, String fileUrl) throws Exception {
+        try (InputStream inputStream = file.getInputStream()) {
+            return processFile(FileTypeUtil.getFileType(fileName, file), inputStream, document, fileUrl);
+        }
+    }
+
+    /**
+     * 完成上传文档的转换和数据库回写
+     * 事件监听器和定时补偿任务共用此入口，并按版本 ID 加锁避免重复处理
+     */
+    @Override
+    @HLock(prefixKey = "document_uploaded_process", key = "#documentVersionId", waitTime = 0)
+    public Boolean completeUploadedDocumentProcessing(Long documentId, Long documentVersionId) throws Exception {
+        KnowledgeDocumentEntity document = knowledgeDocumentService.getById(documentId);
+        Assert.notNull(document, "文档不存在: docId=" + documentId);
+
+        KnowledgeDocumentVersionEntity documentVersion = knowledgeDocumentVersionService.getById(documentVersionId);
+        Assert.notNull(documentVersion, "版本记录不存在: versionId=" + documentVersionId);
+        Assert.isTrue(documentId.equals(documentVersion.getDocId()), "版本不属于该文档");
+
+        // 已完整回写时直接返回，保证监听器和补偿任务重复执行时具备幂等性
+        if (documentVersionId.equals(document.getCurrentVersionId()) && CharSequenceUtil.isNotBlank(documentVersion.getConvertedDocUrl())) {
+            log.info("上传文档已经处理完成，跳过重复执行, documentId={}, versionId={}", documentId, documentVersionId);
+            return Boolean.TRUE;
+        }
+
+        // 当前文档已激活其他版本时不自动覆盖，避免补偿历史版本导致版本回退。\
+        if (document.getCurrentVersionId() != null && !documentVersionId.equals(document.getCurrentVersionId())) {
+            log.warn("文档已存在其他当前版本，跳过上传补偿, documentId={}, currentVersionId={}, pendingVersionId={}", documentId, document.getCurrentVersionId(), documentVersionId);
+            return Boolean.FALSE;
+        }
+
+        String convertedDocUrl = documentVersion.getConvertedDocUrl();
+        if (CharSequenceUtil.isBlank(convertedDocUrl)) {
+            convertedDocUrl = processUploadedDocument(document, documentVersion);
+        }
+        Assert.hasText(convertedDocUrl, "文档处理完成但未返回文档URL");
+
+        // 转换 URL 和当前版本 ID 在同一个短事务内完成回写。
+        knowledgeDocumentService.completeUploadProcessing(documentId, documentVersionId, convertedDocUrl);
+        log.info("上传文档处理完成, documentId={}, versionId={}, convertedDocUrl={}", documentId, documentVersionId, convertedDocUrl);
+        return Boolean.TRUE;
+    }
+
+    /**
+     * 从 MinIO 重新加载原文件并执行转换，不依赖上传请求中的 MultipartFile。
+     */
+    private String processUploadedDocument(KnowledgeDocumentEntity document,
+                                           KnowledgeDocumentVersionEntity documentVersion) throws Exception {
+        Assert.hasText(documentVersion.getDocUrl(), "原始文档URL为空");
+        // 处理器通过 currentVersionId 同步推进文档和对应版本的状态，仅对当前内存对象赋值。
+        document.setCurrentVersionId(documentVersion.getVersionId());
+        String objectName = extractObjectNameFromUrl(documentVersion.getDocUrl());
+        Assert.hasText(objectName, "无法解析原始文档URL");
+
+        try (InputStream inputStream = fileStorageService.downloadFile(objectName)) {
+            FileType fileType = FileTypeUtil.getFileType(objectName);
+            return processFile(fileType, inputStream, document, documentVersion.getDocUrl());
+        }
+    }
+
+    private String processFile(FileType fileType, InputStream inputStream, KnowledgeDocumentEntity document, String fileUrl) throws Exception {
         String convertedDocUrl;
-        FileProcessService fileProcessService = fileProcessServiceFactory.get(FileTypeUtil.getFileType(fileName, file), document.getKnowledgeBaseType());
+        FileProcessService fileProcessService = fileProcessServiceFactory.get(fileType, document.getKnowledgeBaseType());
         if (fileProcessService != null) {
-            convertedDocUrl = fileProcessService.processDocument(document, fileUrl, file.getInputStream());
+            convertedDocUrl = fileProcessService.processDocument(document, fileUrl, inputStream);
         } else {
             DocumentStatus targetStatus = document.getKnowledgeBaseType() == KnowledgeBaseType.DOCUMENT_SEARCH ? DocumentStatus.CONVERTED : DocumentStatus.STORED;
             //更新文档状态【转换完成｜存储完成】
@@ -232,6 +284,7 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
                     .eq(KnowledgeSegmentEntity::getDocumentVersion, documentEntity.getCurrentVersionId())
                     .eq(KnowledgeSegmentEntity::getSkipEmbedding, 0));
         }
+
         if (documentVersionEntity.getStatus() != DocumentStatus.CONVERTED) {
             throw new BusinessException("文档状态不为CONVERTED，无法完成切分");
         }
@@ -404,11 +457,17 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
         if (url == null || url.isEmpty()) {
             return null;
         }
-        int lastSlashIndex = url.lastIndexOf(bucketName) + bucketName.length();
-        if (lastSlashIndex == -1 || lastSlashIndex == url.length() - 1) {
+        String bucketPath = "/" + bucketName + "/";
+        int bucketPathIndex = url.indexOf(bucketPath);
+        if (bucketPathIndex < 0) {
             return null;
         }
-        return url.substring(lastSlashIndex + 1);
+        int objectNameStart = bucketPathIndex + bucketPath.length();
+        int queryIndex = url.indexOf('?', objectNameStart);
+        String objectName = queryIndex >= 0
+                ? url.substring(objectNameStart, queryIndex)
+                : url.substring(objectNameStart);
+        return objectName.isBlank() ? null : objectName;
     }
 
     /**

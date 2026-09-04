@@ -2,6 +2,7 @@ package com.phuang.handler.job;
 
 import cn.hutool.core.collection.CollectionUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.phuang.model.entity.KnowledgeDocumentEntity;
 import com.phuang.model.entity.KnowledgeDocumentVersionEntity;
 import com.phuang.model.enums.DocumentStatus;
@@ -12,8 +13,10 @@ import com.phuang.service.vector.VectorStoreService;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -35,6 +38,12 @@ public class DocumentCompensationJob {
 
     @Resource
     private VectorStoreService vectorStoreService;
+
+    @Value("${document.upload-compensation.delay-minutes:10}")
+    private long uploadCompensationDelayMinutes;
+
+    @Value("${document.upload-compensation.batch-size:100}")
+    private long uploadCompensationBatchSize;
 
     /**
      * 向量化补偿任务
@@ -82,6 +91,62 @@ public class DocumentCompensationJob {
         }
 
         log.info("========== 向量化补偿任务完成，成功: {}，失败: {} ==========", successCount, failCount);
+    }
+
+    /**
+     * 上传文档异步处理补偿任务。
+     *
+     * <p>补偿事件丢失、转换异常和最终信息回写失败的版本。通过延迟窗口避开仍在正常执行的
+     * 异步监听器，具体处理过程与 onDocumentUploaded 共用同一个加锁业务入口。</p>
+     */
+    @XxlJob("documentUploadCompensation")
+    public void documentUploadCompensation() {
+        long delayMinutes = Math.max(uploadCompensationDelayMinutes, 1L);
+        long batchSize = Math.max(uploadCompensationBatchSize, 1L);
+        LocalDateTime expirationTime = LocalDateTime.now().minusMinutes(delayMinutes);
+        int successCount = 0;
+        int skippedCount = 0;
+        int failedCount = 0;
+
+        log.info("========== 开始执行上传文档补偿任务，延迟窗口: {} 分钟，批次大小: {} ==========", delayMinutes, batchSize);
+        try {
+            LambdaQueryWrapper<KnowledgeDocumentVersionEntity> queryWrapper = new LambdaQueryWrapper<KnowledgeDocumentVersionEntity>()
+                    .and(statusWrapper -> statusWrapper.in(KnowledgeDocumentVersionEntity::getStatus,
+                                    DocumentStatus.UPLOADED, DocumentStatus.CONVERTING)
+                            .or(convertedWrapper -> convertedWrapper
+                                    .in(KnowledgeDocumentVersionEntity::getStatus,
+                                            DocumentStatus.CONVERTED, DocumentStatus.STORED)
+                                    .and(urlWrapper -> urlWrapper
+                                            .isNull(KnowledgeDocumentVersionEntity::getConvertedDocUrl)
+                                            .or()
+                                            .eq(KnowledgeDocumentVersionEntity::getConvertedDocUrl, ""))))
+                    .lt(KnowledgeDocumentVersionEntity::getUpdatedAt, expirationTime)
+                    .orderByAsc(KnowledgeDocumentVersionEntity::getUpdatedAt);
+
+            List<KnowledgeDocumentVersionEntity> candidates = knowledgeDocumentVersionService.page(new Page<>(1, batchSize, false), queryWrapper).getRecords();
+            if (CollectionUtil.isEmpty(candidates)) {
+                log.info("没有发现需要补偿的上传文档");
+                return;
+            }
+            log.info("发现 {} 个需要补偿的文档版本", candidates.size());
+            for (KnowledgeDocumentVersionEntity documentVersion : candidates) {
+                try {
+                    //完成上传文档的转换和数据库回写
+                    boolean success = documentProcessService.completeUploadedDocumentProcessing(documentVersion.getDocId(), documentVersion.getVersionId());
+                    if (success) {
+                        successCount++;
+                    } else {
+                        skippedCount++;
+                    }
+                } catch (Exception e) {
+                    failedCount++;
+                    log.error("上传文档补偿失败, documentId={}, versionId={}", documentVersion.getDocId(), documentVersion.getVersionId(), e);
+                }
+            }
+        } catch (Exception e) {
+            log.error("上传文档补偿任务执行异常", e);
+        }
+        log.info("========== 上传文档补偿任务完成，成功: {}，跳过: {}，失败: {} ==========", successCount, skippedCount, failedCount);
     }
 
     /**
