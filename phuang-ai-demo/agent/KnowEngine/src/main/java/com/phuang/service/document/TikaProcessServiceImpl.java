@@ -26,7 +26,7 @@ import java.util.Set;
  */
 @Deprecated
 @Slf4j
-@Service
+//@Service
 public class TikaProcessServiceImpl implements FileProcessService {
 
     private static final String CONVERTED_FILE_DIR = "converted/tika/";

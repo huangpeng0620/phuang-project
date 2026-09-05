@@ -127,6 +127,7 @@ public class MineruParseUtilCopy {
         JsonNode data = sendJson(request);
         String state = requireText(data, "state");
         String errorMessage = optionalText(data, "err_msg");
+        log.info("end invoke queryParseResult,state:{},errorMessage:{}", state, errorMessage);
 
         // 解析失败时保留 MinerU 返回的错误原因，交给上层决定是否重试或终止
         if ("failed".equalsIgnoreCase(state)) {
