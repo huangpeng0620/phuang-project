@@ -128,6 +128,7 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
         return Boolean.TRUE;
     }
 
+    @Transactional(rollbackFor = Exception.class)
     @Override
     public Boolean uploadNewVersion(Long docId, String version, MultipartFile file, String uploadUser, String changelog) throws Exception {
         KnowledgeDocumentEntity document = knowledgeDocumentService.getById(docId);
@@ -170,25 +171,9 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
                 .build();
         knowledgeDocumentVersionService.save(documentVersionEntity);
 
-        document.setCurrentVersionId(documentVersionEntity.getVersionId());
-        // 处理文档（转换/存储）,获取转换后的文档URL
-        String convertedDocUrl = processFile(fileName, file, document, fileUrl);
-
-        documentVersionEntity = knowledgeDocumentVersionService.getById(documentVersionEntity.getVersionId());
-        documentVersionEntity.setConvertedDocUrl(convertedDocUrl);
-
-        knowledgeDocumentVersionService.updateById(documentVersionEntity);
-        knowledgeDocumentService.updateById(document);
+        // 与首次上传保持一致：事务提交后异步完成转换、URL 回写和当前版本切换
+        eventPublisher.publishEvent(new DocumentUploadedEvent(this, document.getDocId(), documentVersionEntity.getVersionId()));
         return Boolean.TRUE;
-    }
-
-    /**
-     * 处理文档（转换/存储）
-     */
-    private String processFile(String fileName, MultipartFile file, KnowledgeDocumentEntity document, String fileUrl) throws Exception {
-        try (InputStream inputStream = file.getInputStream()) {
-            return processFile(FileTypeUtil.getFileType(fileName, file), inputStream, document, fileUrl);
-        }
     }
 
     /**
@@ -213,19 +198,13 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
             return Boolean.TRUE;
         }
 
-        // 当前文档已激活其他版本时不自动覆盖，避免补偿历史版本导致版本回退。
-        if (document.getCurrentVersionId() != null && !documentVersionId.equals(document.getCurrentVersionId())) {
-            log.warn("文档已存在其他当前版本，跳过上传补偿, documentId={}, currentVersionId={}, pendingVersionId={}", documentId, document.getCurrentVersionId(), documentVersionId);
-            return Boolean.FALSE;
-        }
-
         String convertedDocUrl = documentVersion.getConvertedDocUrl();
         if (CharSequenceUtil.isBlank(convertedDocUrl)) {
             convertedDocUrl = processUploadedDocument(document, documentVersion);
         }
         Assert.hasText(convertedDocUrl, "文档处理完成但未返回文档URL");
 
-        // 转换 URL 和当前版本 ID 在同一个短事务内完成回写。
+        // 转换 URL 和当前版本 ID 在同一个短事务内完成回写
         knowledgeDocumentService.completeUploadProcessing(documentId, documentVersionId, convertedDocUrl);
         log.info("上传文档处理完成, documentId={}, versionId={}, convertedDocUrl={}", documentId, documentVersionId, convertedDocUrl);
         return Boolean.TRUE;
@@ -234,10 +213,9 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
     /**
      * 从 MinIO 重新加载原文件并执行转换，不依赖上传请求中的 MultipartFile
      */
-    private String processUploadedDocument(KnowledgeDocumentEntity document,
-                                           KnowledgeDocumentVersionEntity documentVersion) throws Exception {
+    private String processUploadedDocument(KnowledgeDocumentEntity document, KnowledgeDocumentVersionEntity documentVersion) throws Exception {
         Assert.hasText(documentVersion.getDocUrl(), "原始文档URL为空");
-        // 处理器通过 currentVersionId 同步推进文档和对应版本的状态，仅对当前内存对象赋值。
+        // 处理器通过 currentVersionId 同步推进文档和对应版本的状态，仅对当前内存对象赋值
         document.setCurrentVersionId(documentVersion.getVersionId());
         String objectName = extractObjectNameFromUrl(documentVersion.getDocUrl());
         Assert.hasText(objectName, "无法解析原始文档URL");

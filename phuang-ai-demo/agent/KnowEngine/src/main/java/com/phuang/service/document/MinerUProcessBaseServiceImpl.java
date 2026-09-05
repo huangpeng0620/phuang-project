@@ -51,9 +51,7 @@ public abstract class MinerUProcessBaseServiceImpl implements FileProcessService
             return markdownMinioUrl;
         } catch (Exception e) {
             log.error("PDF 文档转换失败,documentId: {}", document.getDocTitle(), e);
-            // 转换失败: 状态回滚为 UPLOADED
-            document.setStatus(DocumentStatus.UPLOADED);
-            knowledgeDocumentService.updateById(document);
+            // 保留版本当前状态，由上传补偿任务重试；避免失败时提前写入新的 currentVersionId。
             throw new RuntimeException("PDF 文档转换失败: " + e.getMessage(), e);
         }
     }

@@ -110,31 +110,59 @@ public class DocumentCompensationJob {
 
         log.info("========== 开始执行上传文档补偿任务，延迟窗口: {} 分钟，批次大小: {} ==========", delayMinutes, batchSize);
         try {
-            LambdaQueryWrapper<KnowledgeDocumentEntity> queryWrapper = new LambdaQueryWrapper<KnowledgeDocumentEntity>()
+            /*
+             * 必须按版本表扫描：上传新版本时，文档主记录仍保持旧版本的状态，
+             * 如果只查询 knowledge_document，就无法发现新版本的异步处理失败。
+             *
+             * 下列 Wrapper 加上后面的 Page 分页，等价 SQL 逻辑为：
+             *
+             * SELECT *
+             * FROM knowledge_document_version
+             * WHERE (
+             *          status IN ('UPLOADED', 'CONVERTING')
+             *          OR (
+             *              status IN ('CONVERTED', 'STORED')
+             *              AND (converted_doc_url IS NULL OR converted_doc_url = '')
+             *          )
+             *       )
+             *   AND updated_at < :expirationTime
+             * ORDER BY updated_at ASC
+             * LIMIT :batchSize;
+             *
+             * 条件说明：
+             * 1. UPLOADED / CONVERTING：事件可能丢失、转换失败或转换一直没有完成，需要重新处理；
+             * 2. CONVERTED / STORED 且转换 URL 为空：主体处理已经推进了状态，但最后的 URL 回写失败；
+             * 3. updated_at 早于 expirationTime：跳过仍在正常异步执行的版本，避免事件与补偿并发；
+             * 4. 按更新时间升序并限制批次：优先补偿滞留时间最长的版本，控制单次任务处理量。
+             */
+            LambdaQueryWrapper<KnowledgeDocumentVersionEntity> queryWrapper = new LambdaQueryWrapper<KnowledgeDocumentVersionEntity>()
                     .and(statusWrapper -> statusWrapper
-                            .in(KnowledgeDocumentEntity::getStatus,
+                            .in(KnowledgeDocumentVersionEntity::getStatus,
                                     DocumentStatus.UPLOADED, DocumentStatus.CONVERTING)
                             .or(convertedWrapper -> convertedWrapper
-                                    .in(KnowledgeDocumentEntity::getStatus,
+                                    .in(KnowledgeDocumentVersionEntity::getStatus,
                                             DocumentStatus.CONVERTED, DocumentStatus.STORED)
-                                    .isNull(KnowledgeDocumentEntity::getCurrentVersionId)))
-                    .lt(KnowledgeDocumentEntity::getUpdatedAt, expirationTime)
-                    .orderByAsc(KnowledgeDocumentEntity::getUpdatedAt);
+                                    .and(urlWrapper -> urlWrapper
+                                            .isNull(KnowledgeDocumentVersionEntity::getConvertedDocUrl)
+                                            .or()
+                                            .eq(KnowledgeDocumentVersionEntity::getConvertedDocUrl, ""))))
+                    .lt(KnowledgeDocumentVersionEntity::getUpdatedAt, expirationTime)
+                    .orderByAsc(KnowledgeDocumentVersionEntity::getUpdatedAt);
 
-            List<KnowledgeDocumentEntity> candidates = knowledgeDocumentService
+            List<KnowledgeDocumentVersionEntity> candidates = knowledgeDocumentVersionService
                     .page(new Page<>(1, batchSize, false), queryWrapper)
                     .getRecords();
             if (CollectionUtil.isEmpty(candidates)) {
                 log.info("没有发现需要补偿的上传文档");
                 return;
             }
-            log.info("发现 {} 个需要补偿的文档", candidates.size());
-            for (KnowledgeDocumentEntity document : candidates) {
+            log.info("发现 {} 个需要补偿的文档版本", candidates.size());
+            for (KnowledgeDocumentVersionEntity documentVersion : candidates) {
                 try {
-                    KnowledgeDocumentVersionEntity documentVersion = resolveCompensationVersion(document);
-                    if (documentVersion == null) {
+                    KnowledgeDocumentEntity document = knowledgeDocumentService.getById(documentVersion.getDocId());
+                    if (document == null) {
                         skippedCount++;
-                        log.warn("未找到可补偿的文档版本，跳过, documentId={}", document.getDocId());
+                        log.warn("未找到版本所属文档，跳过补偿, documentId={}, versionId={}", documentVersion.getDocId(), documentVersion.getVersionId());
                         continue;
                     }
                     //完成上传文档的转换和数据库回写
@@ -146,32 +174,13 @@ public class DocumentCompensationJob {
                     }
                 } catch (Exception e) {
                     failedCount++;
-                    log.error("上传文档补偿失败, documentId={}", document.getDocId(), e);
+                    log.error("上传文档补偿失败, documentId={}, versionId={}", documentVersion.getDocId(), documentVersion.getVersionId(), e);
                 }
             }
         } catch (Exception e) {
             log.error("上传文档补偿任务执行异常", e);
         }
         log.info("========== 上传文档补偿任务完成，成功: {}，跳过: {}，失败: {} ==========", successCount, skippedCount, failedCount);
-    }
-
-    private KnowledgeDocumentVersionEntity resolveCompensationVersion(KnowledgeDocumentEntity document) {
-        if (document.getCurrentVersionId() != null) {
-            return knowledgeDocumentVersionService.getById(document.getCurrentVersionId());
-        }
-
-        return knowledgeDocumentVersionService.page(
-                        new Page<>(1, 1, false),
-                        new LambdaQueryWrapper<KnowledgeDocumentVersionEntity>()
-                                .eq(KnowledgeDocumentVersionEntity::getDocId, document.getDocId())
-                                .in(KnowledgeDocumentVersionEntity::getStatus,
-                                        DocumentStatus.UPLOADED, DocumentStatus.CONVERTING,
-                                        DocumentStatus.CONVERTED, DocumentStatus.STORED)
-                                .orderByDesc(KnowledgeDocumentVersionEntity::getCreatedAt))
-                .getRecords()
-                .stream()
-                .findFirst()
-                .orElse(null);
     }
 
     /**

@@ -107,6 +107,7 @@ public class KnowledgeDocumentServiceImpl extends ServiceImpl<KnowledgeDocumentM
         Assert.isTrue(versionUpdated, "转换后文档URL更新失败: versionId=" + versionId);
 
         document.setCurrentVersionId(versionId);
+        document.setStatus(documentVersion.getStatus());
         boolean documentUpdated = this.updateById(document);
         Assert.isTrue(documentUpdated, "当前文档版本更新失败: docId=" + docId);
     }

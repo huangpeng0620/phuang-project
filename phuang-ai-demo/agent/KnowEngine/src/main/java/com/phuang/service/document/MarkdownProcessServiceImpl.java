@@ -96,9 +96,7 @@ public class MarkdownProcessServiceImpl implements FileProcessService {
             return convertedUrl;
         } catch (Exception e) {
             log.error("Markdown 文档处理失败，documentId: {}", document.getDocTitle(), e);
-            // 处理失败，状态回滚为 UPLOADED
-            document.setStatus(DocumentStatus.UPLOADED);
-            knowledgeDocumentService.updateById(document);
+            // 保留版本当前状态，由上传补偿任务重试；避免失败时提前写入新的 currentVersionId。
             throw new BusinessException("Markdown 文档处理失败: " + e.getMessage(), e);
         } finally {
             closeQuietly(inputStream);
