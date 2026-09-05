@@ -169,9 +169,8 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
                 .status(DocumentStatus.UPLOADED)
                 .build();
         knowledgeDocumentVersionService.save(documentVersionEntity);
-        //是不是不能更新这个字段，需要手动进行文档版本切换才行？？？ todo
-        document.setCurrentVersionId(documentVersionEntity.getVersionId());
 
+        document.setCurrentVersionId(documentVersionEntity.getVersionId());
         // 处理文档（转换/存储）,获取转换后的文档URL
         String convertedDocUrl = processFile(fileName, file, document, fileUrl);
 
@@ -208,8 +207,7 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
 
         // 已完整回写时直接返回，保证监听器和补偿任务重复执行时具备幂等性
         if (documentVersionId.equals(document.getCurrentVersionId()) && CharSequenceUtil.isNotBlank(documentVersion.getConvertedDocUrl())) {
-            DocumentStatus targetStatus = document.getKnowledgeBaseType() == KnowledgeBaseType.DOCUMENT_SEARCH
-                    ? DocumentStatus.CONVERTED : DocumentStatus.STORED;
+            DocumentStatus targetStatus = document.getKnowledgeBaseType() == KnowledgeBaseType.DOCUMENT_SEARCH ? DocumentStatus.CONVERTED : DocumentStatus.STORED;
             knowledgeDocumentService.advanceDocumentAndVersionStatus(documentId, documentVersionId, targetStatus);
             log.info("上传文档已经处理完成，跳过重复执行, documentId={}, versionId={}", documentId, documentVersionId);
             return Boolean.TRUE;
@@ -234,7 +232,7 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
     }
 
     /**
-     * 从 MinIO 重新加载原文件并执行转换，不依赖上传请求中的 MultipartFile。
+     * 从 MinIO 重新加载原文件并执行转换，不依赖上传请求中的 MultipartFile
      */
     private String processUploadedDocument(KnowledgeDocumentEntity document,
                                            KnowledgeDocumentVersionEntity documentVersion) throws Exception {
