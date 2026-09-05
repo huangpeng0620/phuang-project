@@ -88,6 +88,21 @@ public class VectorStoreServiceImpl implements VectorStoreService {
     }
 
     /**
+     * 通过文档ID删除向量记录
+     * @param docId
+     */
+    @Override
+    public void removeByDocId(Long docId) {
+        try {
+            Filter filter = metadataKey(MetadataKeyConstant.DOC_ID).isEqualTo(docId);
+            embeddingStore.removeAll(filter);
+            log.info("按docId删除向量成功, docId: {}", docId);
+        } catch (Exception e) {
+            log.warn("按docId删除向量失败, docId: {}, error: {}", docId, e.getMessage());
+        }
+    }
+
+    /**
      * 批量删除向量
      * @param embeddingIds
      */

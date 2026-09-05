@@ -18,6 +18,8 @@ public interface VectorStoreService {
 
     String embedAndStore(KnowledgeSegmentEntity segment);
 
+    void removeByDocId(Long docId);
+
     void remove(String embeddingId);
 
     void removeAll(List<String> embeddingIds);

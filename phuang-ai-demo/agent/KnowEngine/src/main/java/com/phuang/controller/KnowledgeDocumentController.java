@@ -44,7 +44,7 @@ public class KnowledgeDocumentController {
                               @RequestParam(value = "version", required = false, defaultValue = "1.0.0") String version,
                               @RequestParam(value = "tableName", required = false) String tableName,
                               @RequestParam("description") String description,
-                              @RequestParam("knowledgeBaseType") String knowledgeBaseType,
+                              @RequestParam(value = "knowledgeBaseType", required = false, defaultValue = "DOCUMENT_SEARCH") String knowledgeBaseType,
                               @RequestParam(value = "accessibleBy", required = false) String accessibleBy) throws Exception {
         return documentProcessService.upload(new DocumentUploadParam(file, title, accessibleBy, description, knowledgeBaseType, tableName, version), uploadUser);
     }
@@ -69,8 +69,8 @@ public class KnowledgeDocumentController {
     }
 
     /**
-     * 对文档进行切分
-     * 注意：此方法为手动触发切分接口，正常流程由事件驱动自动执行
+     * 文档切分
+     * 注意: 此方法为手动触发切分接口,正常流程由事件驱动自动执行
      *
      * @param documentId 文档ID
      * @return 切分后的片段数量

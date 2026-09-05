@@ -24,4 +24,5 @@ public interface KnowledgeDocumentService extends IService<KnowledgeDocumentEnti
     void deactivateVersion(Long versionId);
 
     List<KnowledgeDocumentEntity> scanDocumentsNeedingCleanup();
+
 }

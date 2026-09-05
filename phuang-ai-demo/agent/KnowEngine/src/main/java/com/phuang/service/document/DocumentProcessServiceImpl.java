@@ -124,8 +124,7 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
         knowledgeDocumentVersionService.save(documentVersionEntity);
 
         // 事务提交后异步执行文档转换和版本信息回写
-        eventPublisher.publishEvent(new DocumentUploadedEvent(
-                this, knowledgeDocumentEntity.getDocId(), documentVersionEntity.getVersionId()));
+        eventPublisher.publishEvent(new DocumentUploadedEvent(this, knowledgeDocumentEntity.getDocId(), documentVersionEntity.getVersionId()));
         return Boolean.TRUE;
     }
 

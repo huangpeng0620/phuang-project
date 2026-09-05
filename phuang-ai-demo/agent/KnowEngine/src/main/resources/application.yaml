@@ -28,7 +28,7 @@ langchain4j.open-ai.streaming-chat-model.log-requests: true
 langchain4j.open-ai.streaming-chat-model.log-responses: true
 
 # mysql 连接信息
-spring.datasource.url: jdbc:mysql://8.136.10.85:3306/know_engine?useUnicode=true&characterEncoding=UTF-8
+spring.datasource.url: jdbc:mysql://8.136.10.85:3306/know_engine?useUnicode=true&characterEncoding=UTF-8&rewriteBatchedStatements=true
 spring.datasource.username: root
 spring.datasource.password: Hya260511
 spring.datasource.driver-class-name: com.mysql.cj.jdbc.Driver
