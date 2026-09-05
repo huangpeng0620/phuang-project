@@ -138,8 +138,7 @@ public class DocumentCompensationJob {
                         continue;
                     }
                     //完成上传文档的转换和数据库回写
-                    boolean success = documentProcessService.completeUploadedDocumentProcessing(
-                            document.getDocId(), documentVersion.getVersionId());
+                    boolean success = documentProcessService.completeUploadedDocumentProcessing(document.getDocId(), documentVersion.getVersionId());
                     if (success) {
                         successCount++;
                     } else {

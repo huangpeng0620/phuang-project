@@ -79,7 +79,7 @@ public class SnowflakeIdGenerator {
 
     /**
      * 获取单例实例
-     *
+     * <P> volatile + 双重检查锁  </P>
      * @return SnowflakeIdGenerator实例
      */
     public static SnowflakeIdGenerator getInstance() {
@@ -142,9 +142,7 @@ public class SnowflakeIdGenerator {
         lastTimestamp = timestamp;
 
         // 组装ID
-        return ((timestamp - EPOCH) << TIMESTAMP_SHIFT)
-                | (workerId << WORKER_ID_SHIFT)
-                | sequence;
+        return ((timestamp - EPOCH) << TIMESTAMP_SHIFT) | (workerId << WORKER_ID_SHIFT) | sequence;
     }
 
     /**

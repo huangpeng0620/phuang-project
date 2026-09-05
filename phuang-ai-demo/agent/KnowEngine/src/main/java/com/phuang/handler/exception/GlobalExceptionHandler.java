@@ -1,6 +1,6 @@
 package com.phuang.handler.exception;
 
-import com.phuang.hlock.model.BusinessException;
+import com.phuang.hlock.model.HlockException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -20,8 +20,8 @@ public class GlobalExceptionHandler {
      * @param exception
      * @return
      */
-    @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<Map<String, String>> handleBusinessException(BusinessException exception) {
+    @ExceptionHandler(HlockException.class)
+    public ResponseEntity<Map<String, String>> handleBusinessException(HlockException exception) {
         Map<String, String> response = new LinkedHashMap<>();
         response.put("code", exception.getErrorCode());
         response.put("message", exception.getMessage());

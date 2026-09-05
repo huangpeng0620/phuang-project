@@ -19,7 +19,7 @@ import java.util.Objects;
 
 @Aspect
 @Slf4j
-@Order(0)//确保比事务注解先执行，分布式锁在事务外
+@Order(Integer.MIN_VALUE)//确保比事务注解先执行，分布式锁在事务外
 public class HLockAnnotationAspect {
 
     private final LockFactory lockFactory;

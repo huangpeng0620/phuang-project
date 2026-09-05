@@ -19,7 +19,6 @@
 
     <properties>
         <java.version>8</java.version>
-        <custom-annotation-common-start.version>1.0-SNAPSHOT</custom-annotation-common-start.version>
     </properties>
 
     <dependencies>
