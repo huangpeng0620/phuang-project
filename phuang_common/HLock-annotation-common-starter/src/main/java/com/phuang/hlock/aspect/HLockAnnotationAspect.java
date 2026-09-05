@@ -2,7 +2,7 @@ package com.phuang.hlock.aspect;
 
 import com.phuang.hlock.annotation.HLock;
 import com.phuang.hlock.handler.LockInfoHandler;
-import com.phuang.hlock.model.BusinessException;
+import com.phuang.hlock.model.HlockException;
 import com.phuang.hlock.model.LockFactory;
 import com.phuang.hlock.model.LockInfo;
 import com.phuang.hlock.model.enums.BusinessErrorEnum;
@@ -22,7 +22,7 @@ import java.util.Objects;
 @Aspect
 @Component
 @Slf4j
-@Order(0)//确保比事务注解先执行，分布式锁在事务外
+@Order(Integer.MIN_VALUE)//确保比事务注解先执行，分布式锁在事务外
 public class HLockAnnotationAspect {
 
     @Resource
@@ -69,7 +69,7 @@ public class HLockAnnotationAspect {
             log.warn("获取分布式锁失败, method={}, lockName={}, lockType={}",
                     method.toGenericString(), lockInfo.getLockName(), hlock.lockType());
             // 直接传入错误枚举，确保异常同时保留 1001 错误码和对应提示信息。
-            throw new BusinessException(BusinessErrorEnum.REPEATSUBMIT_ERROR);
+            throw new HlockException(BusinessErrorEnum.REPEATSUBMIT_ERROR);
         }
         log.debug("获取分布式锁成功, method={}, lockName={}",
                 method.toGenericString(), lockInfo.getLockName());

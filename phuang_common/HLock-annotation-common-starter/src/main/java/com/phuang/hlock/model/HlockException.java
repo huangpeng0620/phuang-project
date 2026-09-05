@@ -5,28 +5,28 @@ import com.phuang.hlock.model.enums.ErrorEnum;
 
 import java.util.Objects;
 
-public class BusinessException extends RuntimeException {
+public class HlockException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
 
     protected String errorCode;
 
-    public BusinessException() {
+    public HlockException() {
         super(BusinessErrorEnum.SYSTEM_ERROR.getMsg());
         this.errorCode = BusinessErrorEnum.SYSTEM_ERROR.getCode();
     }
 
-    public BusinessException(String errorMsg) {
+    public HlockException(String errorMsg) {
         super(errorMsg);
         this.errorCode = BusinessErrorEnum.SYSTEM_ERROR.getCode();
     }
 
-    public BusinessException(ErrorEnum errorEnum) {
+    public HlockException(ErrorEnum errorEnum) {
         super(errorEnum.getErrorMsg());
         this.errorCode = errorEnum.getErrorCode();
     }
 
-    public BusinessException(String errorCode, String errorMsg) {
+    public HlockException(String errorCode, String errorMsg) {
         super(errorMsg);
         if (Objects.isNull(errorCode)) {
             errorCode = BusinessErrorEnum.SYSTEM_ERROR.getCode();

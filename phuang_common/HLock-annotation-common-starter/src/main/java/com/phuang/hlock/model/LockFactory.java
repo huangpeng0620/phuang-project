@@ -24,7 +24,7 @@ public class LockFactory {
             case Write:
                 return redissonClient.getReadWriteLock(key).writeLock();
             default:
-                throw new BusinessException("do not support lock type");
+                throw new HlockException("do not support lock type");
         }
     }
 }

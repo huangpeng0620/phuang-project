@@ -19,14 +19,13 @@
 
     <properties>
         <java.version>8</java.version>
-        <custom-annotation-common-start.version>1.0-SNAPSHOT</custom-annotation-common-start.version>
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>com.phuang</groupId>
-            <artifactId>custom-annotation-common-start</artifactId>
-            <version>${custom-annotation-common-start.version}</version>
+            <artifactId>HLock-annotation-common-starter</artifactId>
+            <version>1.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
