@@ -20,22 +20,18 @@ import java.util.EnumSet;
 import java.util.Set;
 
 /**
- * Word、PowerPoint、HTML 等通用文档的 Tika 转换处理器1
+ * <P>
+ *     通用文档的 Tika 转换处理器只能处理纯文本内容,因此本类实际不做使用,还是基于 MinerUProcessBaseServiceImpl 实现即可
+ * </P>
  */
+@Deprecated
 @Slf4j
 @Service
 public class TikaProcessServiceImpl implements FileProcessService {
 
     private static final String CONVERTED_FILE_DIR = "converted/tika/";
 
-    private static final Set<FileType> SUPPORTED_TYPES = EnumSet.of(
-            FileType.DOC,
-            FileType.PPT,
-            FileType.HTML,
-            FileType.RTF,
-            FileType.ODT,
-            FileType.EPUB
-    );
+    private static final Set<FileType> SUPPORTED_TYPES = EnumSet.of(FileType.DOC);
 
     @Resource
     private TikaDocumentParser tikaDocumentParser;

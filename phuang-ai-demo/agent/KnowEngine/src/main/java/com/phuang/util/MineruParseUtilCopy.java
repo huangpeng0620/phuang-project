@@ -95,7 +95,7 @@ public class MineruParseUtilCopy {
      * @return MinerU 任务 ID
      */
     public String createParseTask(String minioFileUrl) {
-        // 精准解析接口不接收文件流，而是由 MinerU 主动访问这里提供的 MinIO URL。
+        // 精准解析接口不接收文件流，而是由 MinerU 主动访问这里提供的 MinIO URL
         ObjectNode requestBody = objectMapper.createObjectNode();
         requestBody.put("url", minioFileUrl);
         requestBody.put("model_version", modelVersion);
@@ -105,7 +105,7 @@ public class MineruParseUtilCopy {
                 .POST(HttpRequest.BodyPublishers.ofString(writeJson(requestBody), StandardCharsets.UTF_8))
                 .build();
 
-        // sendJson 已统一校验 HTTP 状态码、业务 code 和 data 对象，此处只提取任务 ID。
+        // sendJson 已统一校验 HTTP 状态码、业务 code 和 data 对象，此处只提取任务 ID
         JsonNode data = sendJson(request);
         return requireText(data, "task_id");
     }
@@ -154,7 +154,7 @@ public class MineruParseUtilCopy {
             zipFilePath = tempDir + File.separator + uniqueId + ".zip";
             extractDir = tempDir + File.separator + uniqueId + "_extracted";
 
-            // HTTP 响应直接写入临时 ZIP 文件，避免将整个压缩包加载到 JVM 堆内存。
+            // HTTP 响应直接写入临时 ZIP 文件，避免将整个压缩包加载到 JVM 堆内存
             downloadZipToFile(fullZipUrl, Paths.get(zipFilePath));
             log.info("ZIP 文件已保存到本地临时目录下: {}", zipFilePath);
 
@@ -170,8 +170,6 @@ public class MineruParseUtilCopy {
             cleanupTempFilesAsync(zipFilePath, extractDir);
         }
     }
-
-    private static final String CONVERTED_FILE_DIR = "converted/pdf/";
 
     private String processExtractedFiles(String extractDir, String taskId) throws Exception {
         Path extractPath = Paths.get(extractDir);
