@@ -272,6 +272,7 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
      * @return
      */
     @Override
+    @HLock(prefixKey = "document-split", key = "#documentSplitParam.documentId", waitTime = 0)
     public Integer split(DocumentSplitParam documentSplitParam) {
         KnowledgeDocumentEntity documentEntity = knowledgeDocumentService.getById(documentSplitParam.documentId());
         Assert.notNull(documentEntity, "文档不存在");
@@ -398,6 +399,7 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
      * @return
      */
     @Override
+    @HLock(prefixKey = "document-embed", key = "#documentVersion.versionId", waitTime = 0)
     public Boolean embedAndStore(KnowledgeDocumentVersionEntity documentVersion) {
         if (documentVersion == null) {
             return false;

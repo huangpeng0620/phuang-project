@@ -86,7 +86,7 @@ public class SnowflakeIdGenerator {
         if (instance == null) {
             synchronized (SnowflakeIdGenerator.class) {
                 if (instance == null) {
-                    // 默认使用进程ID作为workerId
+                    // 默认使用进程ID作为 workerId
                     long workerId = getWorkerId();
                     instance = new SnowflakeIdGenerator(workerId);
                 }
