@@ -77,6 +77,7 @@ public abstract class MinerUProcessBaseServiceImpl implements FileProcessService
                     throw new BusinessException("MinerU 解析失败:" + result.errorMessage());
                 case "pending", "running", "converting":
                     Thread.sleep(3000);
+                    continue;
                 default:
                     throw new BusinessException("未知的 MinerU 任务状态:" + result.state());
             }

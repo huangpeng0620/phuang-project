@@ -72,6 +72,23 @@ create TABLE `knowledge_segment` (
     INDEX `idx_document_version` (`document_version`),
     -- 状态索引，优化按状态查询
     INDEX `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-  COLLATE=utf8mb4_unicode_ci
-  COMMENT='知识片段表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='知识片段表';
+
+-- 表元数据表（存储动态创建的表的元数据信息）
+create TABLE `table_meta` (
+    `id`           BIGINT       NOT NULL AUTO_INCREMENT comment '主键ID',
+    `table_name`   VARCHAR(128) NOT NULL comment '表名',
+    `description`  VARCHAR(512) NULL     comment '表描述',
+    `create_sql`   TEXT         NULL     comment '建表语句',
+    `columns_info` TEXT         NULL     comment '字段信息（JSON格式）',
+    `version_id`   BIGINT       NULL     comment '关联的文档版本ID（knowledge_document_version.version_id），DATA_QUERY 多版本管理使用',
+    `created_at`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP comment '创建时间',
+    `updated_at`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON update CURRENT_TIMESTAMP comment '修改时间',
+    `lock_version` INT          NOT NULL DEFAULT 0 comment '乐观锁版本号',
+    `deleted`      TINYINT      NOT NULL DEFAULT 0 comment '是否删除：0-未删除，1-已删除',
+    PRIMARY KEY (`id`),
+    -- 表名唯一索引
+    UNIQUE INDEX `uk_table_name` (`table_name`),
+    -- 版本ID索引，用于按版本清理与查询
+    INDEX `idx_version_id` (`version_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci comment = '表元数据表';
