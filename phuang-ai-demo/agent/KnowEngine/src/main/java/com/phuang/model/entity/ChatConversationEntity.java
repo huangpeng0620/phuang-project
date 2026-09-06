@@ -4,12 +4,14 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.phuang.model.enums.ChatConversationStatus;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
 /**
  * AI对话会话表
  */
+@Builder
 @Getter
 @Setter
 @TableName("chat_conversation")

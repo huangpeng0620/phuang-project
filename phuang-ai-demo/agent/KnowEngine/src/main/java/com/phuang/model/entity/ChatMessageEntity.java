@@ -15,6 +15,7 @@ import java.util.Map;
 /**
  * AI对话消息表
  */
+@Builder
 @Getter
 @Setter
 @TableName(value = "chat_message", autoResultMap = true)

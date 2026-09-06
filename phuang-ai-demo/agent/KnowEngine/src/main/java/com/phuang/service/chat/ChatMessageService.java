@@ -11,4 +11,9 @@ import com.phuang.model.entity.ChatMessageEntity;
  */
 
 public interface ChatMessageService extends IService<ChatMessageEntity> {
+
+    String saveUserMessage(String conversationId, String content);
+
+    String saveAssistantMessage(String conversationId);
+
 }

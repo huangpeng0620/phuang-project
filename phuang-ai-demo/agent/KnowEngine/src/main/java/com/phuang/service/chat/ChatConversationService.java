@@ -11,4 +11,9 @@ import com.phuang.model.entity.ChatConversationEntity;
  */
 
 public interface ChatConversationService extends IService<ChatConversationEntity> {
+
+    String createConversation(String userId, String title);
+
+    boolean updateTitle(String conversationId, String title);
+
 }
