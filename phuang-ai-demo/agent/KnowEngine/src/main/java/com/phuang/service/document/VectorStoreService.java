@@ -1,4 +1,4 @@
-package com.phuang.service.vector;
+package com.phuang.service.document;
 
 import com.phuang.model.entity.KnowledgeSegmentEntity;
 import dev.langchain4j.data.segment.TextSegment;

@@ -1,4 +1,4 @@
-package com.phuang.service.document;
+package com.phuang.service.document.impl;
 
 import com.phuang.model.constant.ContentType;
 import com.phuang.model.entity.KnowledgeDocumentEntity;

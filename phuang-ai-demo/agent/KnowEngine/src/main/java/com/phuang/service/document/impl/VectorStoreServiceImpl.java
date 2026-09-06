@@ -1,7 +1,8 @@
-package com.phuang.service.vector;
+package com.phuang.service.document.impl;
 
 import com.phuang.model.constant.MetadataKeyConstant;
 import com.phuang.model.entity.KnowledgeSegmentEntity;
+import com.phuang.service.document.VectorStoreService;
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;

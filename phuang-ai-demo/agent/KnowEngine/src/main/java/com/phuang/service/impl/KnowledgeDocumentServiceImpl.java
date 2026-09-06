@@ -2,7 +2,6 @@ package com.phuang.service.impl;
 
 import cn.hutool.core.collection.CollectionUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -16,7 +15,7 @@ import com.phuang.model.enums.SegmentStatus;
 import com.phuang.service.KnowledgeDocumentService;
 import com.phuang.service.KnowledgeDocumentVersionService;
 import com.phuang.service.KnowledgeSegmentService;
-import com.phuang.service.vector.VectorStoreService;
+import com.phuang.service.document.VectorStoreService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.utils.Lists;
@@ -24,7 +23,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.Assert;
 
-import java.util.Iterator;
 import java.util.List;
 
 /**

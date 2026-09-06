@@ -1,4 +1,4 @@
-package com.phuang.service.document;
+package com.phuang.service.document.impl;
 
 import cn.hutool.core.text.CharSequenceUtil;
 import com.alibaba.fastjson2.JSON;
@@ -21,6 +21,7 @@ import com.phuang.model.enums.KnowledgeBaseType;
 import com.phuang.model.enums.SegmentStatus;
 import com.phuang.model.exception.BusinessException;
 import com.phuang.service.*;
+import com.phuang.service.document.DocumentProcessService;
 import com.phuang.service.impl.FileStorageService;
 import com.phuang.util.FileTypeUtil;
 import com.phuang.util.MinioObjectNameUtil;

@@ -1,4 +1,4 @@
-package com.phuang.service.document;
+package com.phuang.service.document.impl;
 
 import cn.hutool.core.util.StrUtil;
 import com.phuang.model.dto.MinerUParseResult;

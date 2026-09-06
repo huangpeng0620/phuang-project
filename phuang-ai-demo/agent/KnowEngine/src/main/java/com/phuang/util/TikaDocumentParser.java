@@ -1,4 +1,4 @@
-package com.phuang.service.document;
+package com.phuang.util;
 
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.exception.WriteLimitReachedException;

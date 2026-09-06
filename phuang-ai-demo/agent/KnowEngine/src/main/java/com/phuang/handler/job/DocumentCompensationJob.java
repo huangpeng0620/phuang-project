@@ -9,7 +9,7 @@ import com.phuang.model.enums.DocumentStatus;
 import com.phuang.service.KnowledgeDocumentService;
 import com.phuang.service.KnowledgeDocumentVersionService;
 import com.phuang.service.document.DocumentProcessService;
-import com.phuang.service.vector.VectorStoreService;
+import com.phuang.service.document.VectorStoreService;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;

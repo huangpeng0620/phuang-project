@@ -1,4 +1,4 @@
-package com.phuang.service.document;
+package com.phuang.service.document.impl;
 
 import com.phuang.model.enums.FileType;
 import com.phuang.model.enums.KnowledgeBaseType;

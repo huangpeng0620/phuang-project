@@ -1,4 +1,4 @@
-package com.phuang.service.document;
+package com.phuang.service.document.impl;
 
 import com.phuang.model.constant.ContentType;
 import com.phuang.model.entity.KnowledgeDocumentEntity;
@@ -10,9 +10,9 @@ import com.phuang.service.FileProcessService;
 import com.phuang.service.KnowledgeDocumentService;
 import com.phuang.service.KnowledgeDocumentVersionService;
 import com.phuang.service.impl.FileStorageService;
+import com.phuang.util.TikaDocumentParser;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
