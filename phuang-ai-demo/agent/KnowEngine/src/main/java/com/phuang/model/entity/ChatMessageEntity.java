@@ -15,6 +15,8 @@ import java.util.Map;
 /**
  * AI对话消息表
  */
+@AllArgsConstructor
+@NoArgsConstructor
 @Builder
 @Getter
 @Setter

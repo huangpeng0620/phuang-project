@@ -21,4 +21,6 @@ public interface ChatMessageService extends IService<ChatMessageEntity> {
     List<ChatMessageEntity> getRecentMessages(String conversationId, int maxMessages);
 
     void deleteMessagesByConversationId(String conversationId);
+
+    void updateTransformContent(String chatMessageId, String newQuery);
 }

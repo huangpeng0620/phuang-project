@@ -95,4 +95,17 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         this.remove(new LambdaQueryWrapper<ChatMessageEntity>()
                 .eq(ChatMessageEntity::getConversationId, conversationId));
     }
+
+    /**
+     * 更新问题的改写结果
+     * @param chatMessageId 消息ID
+     * @param transformContent 改写后的内容
+     */
+    @Override
+    public void updateTransformContent(String chatMessageId, String transformContent) {
+        ChatMessageEntity update = new ChatMessageEntity();
+        update.setTransformContent(transformContent);
+        this.update(update, new LambdaQueryWrapper<ChatMessageEntity>()
+                .eq(ChatMessageEntity::getMessageId, chatMessageId));
+    }
 }
