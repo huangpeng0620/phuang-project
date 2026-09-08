@@ -1,11 +1,17 @@
 package com.phuang.service.chat.impl;
 
 import cn.hutool.core.util.StrUtil;
+import com.phuang.handler.memory.DatabaseChatMemoryStore;
+import com.phuang.model.dto.IntentRecognitionResult;
 import com.phuang.model.enums.ChatSource;
+import com.phuang.service.ai.CommonChatService;
+import com.phuang.service.ai.IntentRecognitionService;
 import com.phuang.service.ai.TitleSummaryService;
 import com.phuang.service.chat.ChatApplicationService;
 import com.phuang.service.chat.ChatConversationService;
 import com.phuang.service.chat.ChatMessageService;
+import dev.langchain4j.memory.chat.MessageWindowChatMemory;
+import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
@@ -30,10 +36,21 @@ import java.util.Map;
 public class ChatApplicationServiceImpl implements ChatApplicationService {
 
     @Resource
+    private ChatModel chatModel;
+
+    @Resource
     private ChatConversationService chatConversationService;
 
     @Resource
     private ChatMessageService chatMessageService;
+
+    @Resource
+    private DatabaseChatMemoryStore databaseChatMemoryStore;
+
+    @Resource
+    private CommonChatService commonChatService;
+
+    private IntentRecognitionService intentRecognitionService;
 
     @Value("${langchain4j.open-ai.chat-model.api-key}")
     private String chatModelApiKey;
@@ -63,13 +80,18 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
                 .topP(0.9)
                 .customParameters(Map.of("enable_thinking", false))
                 .build();
-
         titleChatModel = OpenAiChatModel.builder()
                 .apiKey(chatModelApiKey)
                 .modelName("qwen3.5-flash")
                 .temperature(0.7)
                 .baseUrl(chatModelBaseUrl)
                 .customParameters(Map.of("enable_thinking", false))
+                .build();
+        intentRecognitionService = AiServices.builder(IntentRecognitionService.class).chatModel(chatModel)
+                .chatMemoryProvider(memoryId -> MessageWindowChatMemory.builder()
+                        .id(memoryId)
+                        .maxMessages(10)
+                        .chatMemoryStore(databaseChatMemoryStore).build())
                 .build();
         log.info("成功初始化 ragChatModel、titleChatModel");
     }
@@ -113,6 +135,15 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
         String messageId = chatMessageService.saveUserMessage(conversationId, content);
         String aiMessageId = chatMessageService.saveAssistantMessage(conversationId);
 
+        IntentRecognitionResult recognitionResult = intentRecognitionService.chat(conversationId, content);
+        if (!recognitionResult.related()) {
+            //使用通用大模型进行对话
+            return commonChatService.streamChat(userId, content)
+                    .concatWith(Flux.just("[DONE]:" + finalConversationId));
+        } else {
+            //rag流程
+
+        }
         return null;
     }
 }

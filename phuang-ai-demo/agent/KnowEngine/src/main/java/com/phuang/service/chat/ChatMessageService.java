@@ -3,6 +3,8 @@ package com.phuang.service.chat;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.phuang.model.entity.ChatMessageEntity;
 
+import java.util.List;
+
 /**
  *
  * @description ChatMessageService
@@ -16,4 +18,7 @@ public interface ChatMessageService extends IService<ChatMessageEntity> {
 
     String saveAssistantMessage(String conversationId);
 
+    List<ChatMessageEntity> getRecentMessages(String conversationId, int maxMessages);
+
+    void deleteMessagesByConversationId(String conversationId);
 }

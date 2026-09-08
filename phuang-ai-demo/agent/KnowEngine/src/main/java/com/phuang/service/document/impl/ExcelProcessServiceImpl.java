@@ -24,6 +24,7 @@ import org.springframework.util.Assert;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -46,6 +47,11 @@ public class ExcelProcessServiceImpl implements FileProcessService {
      * 表名前缀
      */
     private static final String TABLE_PREFIX = "custom_data_query_";
+
+    /**
+     * 有效表名正则表达式
+     */
+    private static final Pattern VALID_TABLE_NAME_PATTERN = Pattern.compile("^[a-zA-Z_][a-zA-Z0-9_]*$");
 
     @Override
     public boolean supports(FileType fileType, KnowledgeBaseType knowledgeBaseType) {
@@ -82,18 +88,36 @@ public class ExcelProcessServiceImpl implements FileProcessService {
             /**
              * 校验表是否已存在
              * 1.表存在
-             *  1.1.
-             *  1.2.
+             *  1.1. 元数据校验
+             *  1.2. 表结构校验 (前后两次的表结构必须完全一致)
+             *  1.3. 清空表数据并重新插入
+             *  1.4. 元数据更新
              * 2.表不存在
              *  2.1. 构建建表SQL并执行
              *  2.2. 导入excel数据插入表内
              *  2.3. 生成表元记录并插入
              */
             if (tableMetaMapper.checkTableExists(tableName) > 0) {
-                //todo 待补充
+                // 元数据校验
                 TableMeta existingMeta = tableMetaMapper.selectOne(new LambdaQueryWrapper<TableMeta>().eq(TableMeta::getTableName, tableName));
 
+                // 表结构校验 (前后两次的表结构必须完全一致)
+                List<ColumnInfo> existingColumns = parseColumnInfo(existingMeta.getColumnsInfo());
+                if (!isSchemaCompatible(existingColumns, columns)) {
+                    throw new BusinessException("Excel 表结构与已有表 " + tableName + " 不一致,禁止上传,请保持表头、列名、顺序及类型完全一致;");
+                }
 
+                // 清空表数据并重新插入
+                log.info("表 {} 已存在且结构一致，执行数据替换", tableName);
+                deleteAllData(tableName);
+                List<List<String>> dataRows = excelData.subList(1, excelData.size());
+                int insertedCount = insertData(tableName, columns, dataRows);
+                log.info("表 {} 数据替换完成，新数据 {} 行", tableName, insertedCount);
+
+                // 更新表元数据记录
+                existingMeta.setVersionId(versionId);
+                existingMeta.setDescription(document.getDescription() != null ? document.getDescription() : "从Excel导入: " + documentTitle);
+                tableMetaMapper.updateById(existingMeta);
             } else {
                 //构建建表SQL并执行
                 String createTableSql = generateCreateTableSql(tableName, document.getDescription(), columns);
@@ -129,6 +153,64 @@ public class ExcelProcessServiceImpl implements FileProcessService {
             }
         }
         return fileMinioUrl;
+    }
+
+    /**
+     * 清空指定表的所有数据
+     */
+    private void deleteAllData(String tableName) {
+        if (!isValidTableName(tableName)) {
+            throw new IllegalArgumentException("无效的表名: " + tableName);
+        }
+        String deleteSql = "DELETE FROM `" + tableName + "`";
+        jdbcTemplate.execute(deleteSql);
+        log.info("表 {} 旧数据已清空", tableName);
+    }
+
+    /**
+     * 验证表名是否有效
+     */
+    private boolean isValidTableName(String tableName) {
+        return tableName != null && VALID_TABLE_NAME_PATTERN.matcher(tableName).matches();
+    }
+
+
+    /**
+     * 解析已保存的列信息 JSON
+     */
+    private List<ColumnInfo> parseColumnInfo(String columnsInfoJson) {
+        if (columnsInfoJson == null || columnsInfoJson.isBlank()) {
+            return Collections.emptyList();
+        }
+        return JSON.parseArray(columnsInfoJson, ColumnInfo.class);
+    }
+
+    /**
+     * 判断两次上传的表结构是否一致
+     * <p>
+     * 要求：列数量、列名、数据类型、顺序完全一致
+     */
+    private boolean isSchemaCompatible(List<ColumnInfo> existingColumns, List<ColumnInfo> newColumns) {
+        if (existingColumns == null || newColumns == null) {
+            return existingColumns == newColumns;
+        }
+        if (existingColumns.size() != newColumns.size()) {
+            return false;
+        }
+        for (int i = 0; i < existingColumns.size(); i++) {
+            ColumnInfo a = existingColumns.get(i);
+            ColumnInfo b = newColumns.get(i);
+            if (a == null || b == null) {
+                return false;
+            }
+            if (!Objects.equals(a.getColumnName(), b.getColumnName())) {
+                return false;
+            }
+            if (!Objects.equals(a.getDataType(), b.getDataType())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -276,7 +358,6 @@ public class ExcelProcessServiceImpl implements FileProcessService {
             column.setDataType("VARCHAR(500)"); // 默认使用VARCHAR类型
             columns.add(column);
         }
-
         return columns;
     }
 
@@ -287,7 +368,6 @@ public class ExcelProcessServiceImpl implements FileProcessService {
         if (name == null || name.trim().isEmpty()) {
             return "col";
         }
-
         // 转换为小写
         String sanitized = name.toLowerCase().trim();
         // 替换非法字符为下划线
