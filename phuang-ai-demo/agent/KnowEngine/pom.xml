@@ -50,6 +50,12 @@
             <artifactId>langchain4j-elasticsearch</artifactId>
             <version>1.11.0-beta19</version>
         </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-experimental-sql</artifactId>
+            <version>1.11.0-beta19</version>
+            <scope>compile</scope>
+        </dependency>
         <!-- mybatis-plus -->
         <dependency>
             <groupId>com.baomidou</groupId>

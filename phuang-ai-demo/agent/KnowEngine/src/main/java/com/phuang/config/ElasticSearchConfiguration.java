@@ -21,6 +21,9 @@ public class ElasticSearchConfiguration {
 
     /**
      * ES 索引名称
+     * <P>
+     *     第一次向该索引写入向量数据时,Elasticsearch 会自动创建该索引
+     * </P>
      */
     public static final String INDEX_NAME = "know-engine-vector";
 
