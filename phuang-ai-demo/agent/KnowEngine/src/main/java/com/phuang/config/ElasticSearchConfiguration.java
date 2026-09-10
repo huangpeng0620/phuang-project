@@ -28,7 +28,11 @@ public class ElasticSearchConfiguration {
     public static final String INDEX_NAME = "know-engine-vector";
 
     /**
-     * 定义 ElasticsearchEmbeddingStore
+     * 定义 ElasticsearchEmbeddingStore 向量存储
+     * <P>
+     *     1. @ConditionalOnMissingBean: 项目没有自定义同类型 Bean 时才创建
+     *     2. @Primary: 存在多个候选 Bean 时优先注入这个
+     * </P>
      * @param restClient
      * @return
      */
@@ -46,7 +50,10 @@ public class ElasticSearchConfiguration {
     }
 
     /**
-     * 定义 Embedding 向量模型
+     * 定义 langchain4j Embedding 向量模型
+     * <P>
+     *  1. maxSegmentsPerBatch = 9 表示批量向量化时每批最多发送 9 个文本分片
+     * </P>
      * @return
      */
     @Bean
@@ -61,7 +68,11 @@ public class ElasticSearchConfiguration {
     }
 
     /**
-     * 配置 ES 客户端
+     * 创建底层 Elasticsearch HTTP 客户端
+     * <P>
+     *     1. destroyMethod = "close" 使得 Spring 容器关闭时自动调用 close()
+     *     2. @ConditionalOnMissingBean 使得项目没有自定义同类型 Bean 时才创建
+     * </P>
      * @return
      */
     @Bean(destroyMethod = "close")

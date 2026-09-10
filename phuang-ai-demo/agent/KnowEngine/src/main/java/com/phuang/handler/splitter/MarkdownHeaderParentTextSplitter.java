@@ -9,6 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -22,6 +23,7 @@ import static com.phuang.model.constant.MetadataKeyConstant.*;
  * @author andyflury （https://github.com/langchain4j/langchain4j/issues/574 ）
  * @author phuang
  */
+@Slf4j
 public class MarkdownHeaderParentTextSplitter implements DocumentSplitter {
 
     private static final Map<String, String> DEFAULT_HEADERS_TO_SPLIT = new HashMap<>();
@@ -118,9 +120,7 @@ public class MarkdownHeaderParentTextSplitter implements DocumentSplitter {
      */
     public MarkdownHeaderParentTextSplitter(Map<String, String> headersToSplitOn, boolean returnEachLine, boolean stripHeaders, int chunkSize, int overlap) {
         // 按标题标记长度倒序排列，确保优先匹配更长的标记（如"###"优先于"##"）
-        this.headersToSplitOn = headersToSplitOn.entrySet().stream()
-                .sorted(Comparator.comparingInt(e -> -e.getKey().length()))
-                .collect(Collectors.toList());
+        this.headersToSplitOn = headersToSplitOn.entrySet().stream().sorted(Comparator.comparingInt(e -> -e.getKey().length())).collect(Collectors.toList());
         this.returnEachLine = returnEachLine;
         this.stripHeaders = stripHeaders;
         this.chunkSize = chunkSize;
@@ -129,18 +129,15 @@ public class MarkdownHeaderParentTextSplitter implements DocumentSplitter {
 
     @Override
     public List<TextSegment> split(Document document) {
-        System.out.println("开始解析Markdown文档...");
+        log.info("开始解析Markdown文档...");
         // 移除文档中所有空行
         String text = Arrays.stream(document.text().split("\n"))
-                .filter(line -> !line.trim().isEmpty())
-                .collect(Collectors.joining("\n"));
-
+                .filter(line -> !line.trim().isEmpty()).collect(Collectors.joining("\n"));
         List<TextSegment> result = new ArrayList<>();
         List<DocumentWithMetadata> segments = splitWithMetadata(text, document.metadata().toMap());
         for (DocumentWithMetadata segment : segments) {
             result.add(new TextSegment(segment.getContent(), Metadata.from(segment.getMetadata())));
         }
-
         return result;
     }
 
@@ -155,7 +152,6 @@ public class MarkdownHeaderParentTextSplitter implements DocumentSplitter {
         String filteredText = Arrays.stream(text.split("\n"))
                 .filter(line -> !line.trim().isEmpty())
                 .collect(Collectors.joining("\n"));
-
         List<TextSegment> result = new ArrayList<>();
         List<DocumentWithMetadata> segments = splitWithMetadata(filteredText, new HashMap<>());
         for (DocumentWithMetadata segment : segments) {
