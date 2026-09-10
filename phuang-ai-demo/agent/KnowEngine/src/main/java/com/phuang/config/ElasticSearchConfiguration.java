@@ -22,7 +22,7 @@ public class ElasticSearchConfiguration {
     /**
      * ES 索引名称
      * <P>
-     *     第一次向该索引写入向量数据时,Elasticsearch 会自动创建该索引
+     *     创建 ElasticsearchEmbeddingStore 前显式检查并创建该索引
      * </P>
      */
     public static final String INDEX_NAME = "know-engine-vector";
@@ -35,7 +35,10 @@ public class ElasticSearchConfiguration {
     @Primary
     @ConditionalOnMissingBean
     @Bean
-    public ElasticsearchEmbeddingStore elasticsearchEmbeddingStore(RestClient restClient) {
+    public ElasticsearchEmbeddingStore elasticsearchEmbeddingStore(RestClient restClient,
+                                                                   ElasticsearchIndexInitializer indexInitializer) {
+        // 索引手动初始化
+        indexInitializer.createIfAbsent(INDEX_NAME, properties.getDimensions());
         return ElasticsearchEmbeddingStore.builder()
                 .restClient(restClient)
                 .indexName(INDEX_NAME)
