@@ -10,7 +10,6 @@ import dev.langchain4j.rag.content.aggregator.DefaultContentAggregator;
 import dev.langchain4j.rag.content.aggregator.ReRankingContentAggregator;
 import dev.langchain4j.rag.content.aggregator.ReciprocalRankFuser;
 import dev.langchain4j.rag.query.Query;
-import dev.langchain4j.rag.query.transformer.ExpandingQueryTransformer;
 
 import java.util.*;
 import java.util.function.Function;
@@ -23,35 +22,21 @@ import static dev.langchain4j.rag.content.ContentMetadata.RERANKED_SCORE;
 import static java.util.Collections.emptyList;
 
 /**
- * 使用 {@link ScoringModel}（例如 Cohere）对检索内容进行重排序的 {@link ContentAggregator} 实现。
- * <br>
- * {@link ScoringModel} 会根据一个选定的 {@link Query} 对所有 {@link Content} 进行评分。
- * 如果该聚合器接收到多个 {@link Query}
- * （例如使用 {@link ExpandingQueryTransformer} 扩展查询时），
- * 必须通过 {@link #querySelector} 选出一个查询，作为所有内容的重排序依据。
- * 也可以自行实现另一种策略：分别使用检索每组内容时对应的查询进行评分，
- * 再根据评分结果统一重排序，而不是让所有内容共用一个查询。
- * 当多个查询之间差异较大时，这种方式可能获得更好的结果，但调用成本也可能更高。
- * <br>
- * <br>
- * 调用 {@link ScoringModel} 之前，会先按照与 {@link DefaultContentAggregator} 相同的方式
- * 对所有 {@link Content} 进行融合，具体融合规则请参考其 Javadoc。
- * <br>
- * <br>
- * 可选配置参数：
- * <br>
- * - {@link #minScore}：允许返回的最低分数，低于该阈值的内容会被过滤。
- * <br>
- * - {@link #maxResults}：重排序后最多返回的内容数量。
+ * @description 自定义融合重排序器
  *
  * @see DefaultContentAggregator
  * @see ReRankingContentAggregator
+ * @author huangpeng
+ * @since 2026/9/11
  */
 public class KnowEngineReRankingContentAggregator implements ContentAggregator {
 
     /**
-     * 默认查询选择器：输入中只能包含一个查询，并将该查询作为重排序依据；
-     * 如果存在多个查询，则无法判断应该使用哪个查询进行评分，直接抛出异常
+     * DEFAULT_QUERY_SELECTOR 表示默认查询选择器,限制输入中只能包含一个查询，并将该查询作为重排序依据,如果存在多个查询，则无法判断应该使用哪个查询进行评分，直接抛出异常
+     *
+     * querySelector 需要选定一个 Query 对所有的 Content 进行评分,如果该 selector 接收到多个 Query,必须通过 {@link #querySelector} 选出一个查询，作为所有内容的重排序依据。
+     * 也可以自行实现另一种策略：分别使用检索每组内容时对应的查询进行评分，再根据评分结果统一重排序，而不是让所有内容共用一个查询。
+     * 当多个查询之间差异较大时，这种方式可能获得更好的结果，但调用成本也可能更高。
      */
     public static final Function<Map<Query, Collection<List<Content>>>, Query> DEFAULT_QUERY_SELECTOR =
             (queryToContents) -> {
@@ -79,7 +64,7 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
     private final Function<Map<Query, Collection<List<Content>>>, Query> querySelector;
 
     /**
-     * 最低重排序分数；为 {@code null} 时不根据分数过滤内容
+     * 允许返回的最低分数；为 {@code null} 时不根据分数过滤内容
      */
     private final Double minScore;
 
@@ -172,14 +157,23 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
          */
         Query query = querySelector.apply(queryToContents);
 
-        // 针对每个查询，通过 RRF 算法融合通过该查询从不同数据源检索到的所有内容
-/*        Map<Query, List<Content>> queryToFusedContents = fuse(queryToContents);*/
+        /**
+         * 针对每个查询,在每个查询内对该查询对应的结果进行 RRF 统一融合
+         * <p>
+         *  为什么当前 aggregate 方法中需要做两次 RRF 融合,而不直接把所有列表展开做一次 RRF ?
+         *   例如: Query 1对应三个 Retriever，每个 Retriever 都包含了结果A; Query 2 对应一个 Retriever，该 Retriever 中仅包含结果 B,
+         *   实际上,结果 A 对 Query 1 和结果 B 对 Query 2 的权重应该相同,如果直接展开全部结果进行 RRF 的话,会使得结果 A三倍权重于结果 B;
+         *  因此两次 RRF 的设计可以避免“Retriever 更多的 Query 权重更大”
+         *
+         *  但其实两次 RRF 的排序结果对后续的模型精排序没有任何影响,因为只对 RRF 的结果做了去重,并未做 RRF 结果截断,因此 RRF 的排名计算其实是冗余的;
+         * </p>
+         */
+        Map<Query, List<Content>> queryToFusedContents = fuse(queryToContents);
 
         /**
          * 转换为基于 EMBEDDING_ID 判断相等的内容对象, 确保跨查询融合时可以识别重复片段
          */
-        List<List<KnowEngineDefaultContent>> knowEngineDefaultContents = queryToContents.values().stream()
-                .flatMap(Collection::stream).map(contents -> {
+        List<List<KnowEngineDefaultContent>> knowEngineDefaultContents = queryToFusedContents.values().stream().map(contents -> {
             return contents.stream().map(content -> {
                 return new KnowEngineDefaultContent((DefaultContent) content);
             }).toList();
@@ -190,11 +184,13 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
             return emptyList();
         }
 
-        // 将所有查询对应的内容再次进行统一融合
+        /**
+         * 针对所有查询对应的结果进行 RRF 统一融合
+         */
         List<Content> fusedContents = KnowEngineReciprocalRankFuser.fuse(knowEngineDefaultContents);
 
         // 按照 maxResults 去截取候选
-        fusedContents = fusedContents.stream().limit(maxResults).toList();
+        //fusedContents = fusedContents.stream().limit(maxResults).toList();
 
         // 所有候选内容均为空时，不再调用评分模型
         if (fusedContents.isEmpty()) {
@@ -206,7 +202,7 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
     }
 
     /**
-     * 以查询为单位进行第一阶段融合：将同一个查询从不同检索数据源获得的多个结果列表，
+     * 以查询为单位进行第一阶段融合：将同一个查询从不同检索数据源获得的多个结果列表
      * 使用标准 RRF 算法合并为一个有序列表
      *
      * @param queryToContents 查询及其对应的多组检索结果
@@ -254,27 +250,27 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
                 .collect(Collectors.toList());
     }
 
-    /** 用于以链式调用方式构建 {@link KnowEngineReRankingContentAggregator}。 */
+    /** 用于以链式调用方式构建 {@link KnowEngineReRankingContentAggregator} */
     public static class ReRankingContentAggregatorBuilder {
 
-        /** 用于内容重排序的评分模型。 */
+        /** 用于内容重排序的评分模型 */
         private ScoringModel scoringModel;
 
-        /** 多查询场景下用于选择重排序查询的函数。 */
+        /** 多查询场景下用于选择重排序查询的函数 */
         private Function<Map<Query, Collection<List<Content>>>, Query> querySelector;
 
-        /** 允许返回的最低重排序分数。 */
+        /** 允许返回的最低重排序分数 */
         private Double minScore;
 
-        /** 重排序后最多返回的内容数量。 */
+        /** 重排序后最多返回的内容数量 */
         private Integer maxResults;
 
-        /** 限制外部直接实例化，统一通过 {@link KnowEngineReRankingContentAggregator#builder()} 创建。 */
+        /** 限制外部直接实例化，统一通过 {@link KnowEngineReRankingContentAggregator#builder()} 创建 */
         ReRankingContentAggregatorBuilder() {
         }
 
         /**
-         * 设置用于内容重排序的评分模型。
+         * 设置用于内容重排序的评分模型
          *
          * @param scoringModel 评分模型
          * @return 当前构建器
@@ -285,7 +281,7 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
         }
 
         /**
-         * 设置多查询场景下的重排序查询选择器。
+         * 设置多查询场景下的重排序查询选择器
          *
          * @param querySelector 查询选择器
          * @return 当前构建器
@@ -296,7 +292,7 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
         }
 
         /**
-         * 设置允许返回的最低重排序分数。
+         * 设置允许返回的最低重排序分数
          *
          * @param minScore 最低分数
          * @return 当前构建器
@@ -307,7 +303,7 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
         }
 
         /**
-         * 设置重排序后最多返回的内容数量。
+         * 设置重排序后最多返回的内容数量
          *
          * @param maxResults 最大结果数量
          * @return 当前构建器
@@ -318,7 +314,7 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
         }
 
         /**
-         * 根据当前配置创建内容聚合器，参数校验和默认值处理由聚合器构造方法完成。
+         * 根据当前配置创建内容聚合器，参数校验和默认值处理由聚合器构造方法完成
          *
          * @return 配置完成的内容聚合器
          */
