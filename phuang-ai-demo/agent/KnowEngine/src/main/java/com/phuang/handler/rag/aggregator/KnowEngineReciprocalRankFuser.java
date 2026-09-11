@@ -16,7 +16,7 @@ import static dev.langchain4j.internal.ValidationUtils.ensureBetween;
 public class KnowEngineReciprocalRankFuser {
 
     /**
-     * 使用倒数排名融合（RRF）算法将多个内容列表融合为一个内容列表，默认使用 {@code k = 60}。
+     * 使用倒数排名融合（RRF）算法将多个内容列表融合为一个内容列表，默认使用 {@code k = 60}
      *
      * @param listsOfContents 待融合的内容列表集合
      * @return 融合并按照融合分数降序排列后的内容列表
@@ -27,13 +27,15 @@ public class KnowEngineReciprocalRankFuser {
 
     /**
      * 使用倒数排名融合（RRF）算法将多个内容列表融合为一个内容列表
-     *
+     * <P>
+     *     包装成 KnowEngineDefaultContent 对象是为了通过其文档的 EMBEDDING_ID 进行去重
+     * </P>
      * @param listsOfContents 待融合的内容列表集合
-     * @param k               排名平滑常量，用于控制各列表中排名差异对融合分数的影响。
-     *                        根据经验通常取 60，但最优值会随具体应用和数据特征而变化。
-     *                        {@code k} 越大，不同名次之间的分数差距越小，融合分数越均匀；
-     *                        {@code k} 越小，各列表中排名靠前的内容影响越大。
-     *                        {@code k} 必须大于或等于 1。
+     * @param k               排名平滑常量，用于控制各列表中排名差异对融合分数的影响
+     *                        根据经验通常取 60，但最优值会随具体应用和数据特征而变化
+     *                        {@code k} 越大，不同名次之间的分数差距越小，融合分数越均匀
+     *                        {@code k} 越小，各列表中排名靠前的内容影响越大
+     *                        {@code k} 必须大于或等于 1
      * @return 融合并按照融合分数降序排列后的内容列表
      */
     public static List<Content> fuse(Collection<List<KnowEngineDefaultContent>> listsOfContents, int k) {

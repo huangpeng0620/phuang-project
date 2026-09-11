@@ -7,6 +7,7 @@ import dev.langchain4j.rag.content.Content;
 import dev.langchain4j.rag.content.DefaultContent;
 import dev.langchain4j.rag.content.aggregator.ContentAggregator;
 import dev.langchain4j.rag.content.aggregator.DefaultContentAggregator;
+import dev.langchain4j.rag.content.aggregator.ReRankingContentAggregator;
 import dev.langchain4j.rag.content.aggregator.ReciprocalRankFuser;
 import dev.langchain4j.rag.query.Query;
 import dev.langchain4j.rag.query.transformer.ExpandingQueryTransformer;
@@ -44,12 +45,13 @@ import static java.util.Collections.emptyList;
  * - {@link #maxResults}：重排序后最多返回的内容数量。
  *
  * @see DefaultContentAggregator
+ * @see ReRankingContentAggregator
  */
 public class KnowEngineReRankingContentAggregator implements ContentAggregator {
 
     /**
      * 默认查询选择器：输入中只能包含一个查询，并将该查询作为重排序依据；
-     * 如果存在多个查询，则无法判断应该使用哪个查询进行评分，直接抛出异常。
+     * 如果存在多个查询，则无法判断应该使用哪个查询进行评分，直接抛出异常
      */
     public static final Function<Map<Query, Collection<List<Content>>>, Query> DEFAULT_QUERY_SELECTOR =
             (queryToContents) -> {
@@ -59,7 +61,7 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
                             "The 'queryToContents' contains %s queries, making the re-ranking ambiguous. " +
                                     "Because there are multiple queries, it is unclear which one should be " +
                                     "used for re-ranking. Please provide a 'querySelector' in the constructor/builder.",
-                                    queryToContents.size()
+                            queryToContents.size()
                     );
                 }
                 // 单查询场景下直接返回唯一的查询
@@ -77,7 +79,7 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
     private final Function<Map<Query, Collection<List<Content>>>, Query> querySelector;
 
     /**
-     * 最低重排序分数；为 {@code null} 时不根据分数过滤内容。
+     * 最低重排序分数；为 {@code null} 时不根据分数过滤内容
      */
     private final Double minScore;
 
@@ -137,10 +139,15 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
     }
 
     /**
-     * 聚合并重排序检索内容：先为每个查询融合来自不同数据源的结果，再跨查询进行二次融合，
-     * 最后使用选定查询调用评分模型，对内容进行过滤、降序排列和数量截断。
+     * 聚合并重排序检索内容：先为每个查询融合来自不同数据源的结果，再跨查询进行二次融合，最后使用选定查询调用评分模型，对内容进行过滤、降序排列和数量截断
      *
-     * @param queryToContents 查询及其对应的多组检索结果
+     * @param queryToContents 查询及其对应的多组检索结果, key 是原始或扩展后的查询,value 是该查询通过不同 Retriever 得到的多组有序结果,例如:
+     *                        Query A:
+     *                              ├─ 向量检索结果：[D1, D2, D3]
+     *                              └─ 全文检索结果：[D2, D4]
+     *                        Query B:
+     *                              ├─ 向量检索结果：[D1, D5]
+     *                              └─ 图数据库结果：[D6]
      * @return 完成融合、重排序和过滤后的内容列表
      */
     @Override
@@ -149,27 +156,45 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
         if (queryToContents.isEmpty()) {
             return emptyList();
         }
-
-        // 选择一个查询，作为所有内容的重排序依据
+        /**
+         * 选择一个查询作为所有内容的重排序依据
+         * <P>
+         *     默认选择器只允许一个查询 , 查询数量大于 1 时直接抛异常，因为它不知道应该使用哪个查询给所有内容打分;
+         *     因此多查询场景必须显式配置，例如选择原始查询或第一个查询;
+         *  假设: 假设查询扩展产生了三个 Query, 检索阶段可以分别用 Q1、Q2、Q3 查文档，然后通过 RRF 合并结果, 但到 BGE 重排阶段，代码把所有候选文档放在一起：
+         *     List<Content> fusedContents = ...
+         *     然后只能执行类似:
+         *     scoreAll(fusedContents, Q1.text())
+         *     那么问题是重排序时到底采用那个查询作为依据,如果随便选择,结果可能不同,因此默认代码拒绝自行猜测,调用方必须明确告诉它采用什么策略,例如:始终使用第一个查询:
+         *     .querySelector(map -> map.keySet().iterator().next())
+         * 大多数情况下都可以使用【原始查询】作为文档结构重排序的依据;
+         * </P>
+         */
         Query query = querySelector.apply(queryToContents);
 
-        // 针对每个查询，融合通过该查询从不同数据源检索到的所有内容
-        Map<Query, List<Content>> queryToFusedContents = fuse(queryToContents);
+        // 针对每个查询，通过 RRF 算法融合通过该查询从不同数据源检索到的所有内容
+/*        Map<Query, List<Content>> queryToFusedContents = fuse(queryToContents);*/
 
-        // 转换为基于 EMBEDDING_ID 判断相等的内容对象，确保跨查询融合时可以识别重复片段
-        List<List<KnowEngineDefaultContent>> knowEngineDefaultContents = queryToFusedContents.values().stream().map(contents -> {
+        /**
+         * 转换为基于 EMBEDDING_ID 判断相等的内容对象, 确保跨查询融合时可以识别重复片段
+         */
+        List<List<KnowEngineDefaultContent>> knowEngineDefaultContents = queryToContents.values().stream()
+                .flatMap(Collection::stream).map(contents -> {
             return contents.stream().map(content -> {
                 return new KnowEngineDefaultContent((DefaultContent) content);
             }).toList();
         }).toList();
 
         // 没有生成任何待融合的结果列表时直接返回空结果
-        if(knowEngineDefaultContents.isEmpty()){
+        if (knowEngineDefaultContents.isEmpty()) {
             return emptyList();
         }
 
         // 将所有查询对应的内容再次进行统一融合
         List<Content> fusedContents = KnowEngineReciprocalRankFuser.fuse(knowEngineDefaultContents);
+
+        // 按照 maxResults 去截取候选
+        fusedContents = fusedContents.stream().limit(maxResults).toList();
 
         // 所有候选内容均为空时，不再调用评分模型
         if (fusedContents.isEmpty()) {
@@ -182,7 +207,7 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
 
     /**
      * 以查询为单位进行第一阶段融合：将同一个查询从不同检索数据源获得的多个结果列表，
-     * 使用标准 RRF 算法合并为一个有序列表。
+     * 使用标准 RRF 算法合并为一个有序列表
      *
      * @param queryToContents 查询及其对应的多组检索结果
      * @return 每个查询及其完成第一阶段融合后的结果列表
@@ -206,7 +231,6 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
      * @return 根据模型分数过滤并重新排序后的内容列表
      */
     protected List<Content> reRankAndFilter(List<Content> contents, Query query) {
-
         // 提取候选内容中的文本片段，作为评分模型的批量输入
         List<TextSegment> segments = contents.stream()
                 .map(Content::textSegment)
