@@ -1,5 +1,6 @@
 package com.phuang.handler.splitter;
 
+import com.google.common.collect.Maps;
 import com.phuang.util.SnowflakeIdGenerator;
 import dev.langchain4j.data.document.Document;
 import dev.langchain4j.data.document.DocumentSplitter;
@@ -26,7 +27,10 @@ import static com.phuang.model.constant.MetadataKeyConstant.*;
 @Slf4j
 public class MarkdownHeaderParentTextSplitter implements DocumentSplitter {
 
-    private static final Map<String, String> DEFAULT_HEADERS_TO_SPLIT = new HashMap<>();
+    /**
+     * 定义 Markdown 标题符号到元数据字段名的映射
+     */
+    private static final Map<String, String> DEFAULT_HEADERS_TO_SPLIT = Maps.newHashMap();
 
     static {
         DEFAULT_HEADERS_TO_SPLIT.put("#", "title");
@@ -38,22 +42,41 @@ public class MarkdownHeaderParentTextSplitter implements DocumentSplitter {
     }
 
     /**
-     * 需要分割的标题列表，按标题标记长度倒序排列
+     * 需要分割的标题列表,默认使用 DEFAULT_HEADERS_TO_SPLIT
+     * <P>
+     *     按标题标记长度倒序排列
+     * </P>
      */
     private List<Map.Entry<String, String>> headersToSplitOn;
 
     /**
-     * 是否按行返回结果
+     * 是否跳过最后的相邻块合并步骤, 默认 true
+     * <P>
+     *     例如:
+     *      # 用户手册
+     *     ## 安装
+     *     这里是安装步骤。
+     *
+     *     1.如果 returnEachLine = true; 则分成两个分块:
+     *              分片1: # 用户手册
+     *              分片2：## 安装 + 安装步骤
+     *
+     *     2.如果 returnEachLine = false; 则分成一个分块:
+     *          分片1：
+     *              # 用户手册
+     *             ## 安装
+     *             这里是安装步骤
+     * </P>
      */
     private boolean returnEachLine;
 
     /**
-     * 是否剥离标题行本身
+     * 是否从分片正文中删除 Markdown 标题, 默认 false
      */
     private boolean stripHeaders;
 
     /**
-     * 每个分片的最大字符数，0表示不限制
+     * 分片最大字符数,0 表示不限制
      */
     private int chunkSize;
 
@@ -130,15 +153,11 @@ public class MarkdownHeaderParentTextSplitter implements DocumentSplitter {
     @Override
     public List<TextSegment> split(Document document) {
         log.info("开始解析Markdown文档...");
-        // 移除文档中所有空行
+        // 删除文档中所有空行再用换行符拼回文本
         String text = Arrays.stream(document.text().split("\n"))
                 .filter(line -> !line.trim().isEmpty()).collect(Collectors.joining("\n"));
-        List<TextSegment> result = new ArrayList<>();
         List<DocumentWithMetadata> segments = splitWithMetadata(text, document.metadata().toMap());
-        for (DocumentWithMetadata segment : segments) {
-            result.add(new TextSegment(segment.getContent(), Metadata.from(segment.getMetadata())));
-        }
-        return result;
+        return segments.stream().map(segment -> new TextSegment(segment.getContent(), Metadata.from(segment.getMetadata()))).collect(Collectors.toList());
     }
 
     /**
@@ -162,7 +181,7 @@ public class MarkdownHeaderParentTextSplitter implements DocumentSplitter {
     }
 
     /**
-     * 核心分割逻辑，保留元数据
+     * 核心分割逻辑(保留元数据)
      *
      * @param text         待分割的文本
      * @param baseMetadata 基础元数据，会被传递到每个分段中
@@ -170,19 +189,29 @@ public class MarkdownHeaderParentTextSplitter implements DocumentSplitter {
      */
     private List<DocumentWithMetadata> splitWithMetadata(String text, Map<String, Object> baseMetadata) {
         List<String> lines = Arrays.asList(text.split("\n"));
-        List<Line> linesWithMetadata = new ArrayList<>();
+        /**
+         * currentContent 当前正在累积的正文
+         * currentMetadata 当前正文对应的 metadata
+         * linesWithMetadata 保存已经完成的 "正文 + 元数据" 分块,已经收集完成的分块结果
+         * initialMetadata 最新标题路径对应的 metadata
+         */
         List<String> currentContent = new ArrayList<>();
+        List<Line> linesWithMetadata = new ArrayList<>();
         Map<String, Object> currentMetadata = new HashMap<>(baseMetadata);
-        List<Header> headerStack = new ArrayList<>();  // 标题栈，用于追踪当前的标题层级结构
         Map<String, Object> initialMetadata = new HashMap<>(baseMetadata);
+        // 标题栈,用来维护当前标题路径
+        List<Header> headerStack = new ArrayList<>();
 
         boolean inCodeBlock = false;  // 是否在代码块中
         String openingFence = "";     // 代码块的开始标记
-
         for (String line : lines) {
             String strippedLine = line.trim();
-
-            // 处理代码块标记，代码块内的内容不作为标题处理
+            /**
+             * Markdown 支持两种常见的围栏代码块:
+             *  1. ```java 代码```
+             *  2. ~~~java 代码~~~
+             * 下面逻辑的核心目的是避免把代码块里面以 # 开头的代码误判成 Markdown 标题
+             */
             if (!inCodeBlock) {
                 if (strippedLine.startsWith("```")) {
                     inCodeBlock = !inCodeBlock;
@@ -197,28 +226,48 @@ public class MarkdownHeaderParentTextSplitter implements DocumentSplitter {
                     openingFence = "";
                 }
             }
-
             // 代码块内的内容直接添加，不做标题检测
             if (inCodeBlock) {
                 currentContent.add(strippedLine);
                 continue;
             }
 
-            // 检测并处理标题行
+            /**
+             * 检测并处理标题行
+             * <P>
+             *     下面 interrupted {} 中的类似于标签（label），它不是关键字，名字可以随便取
+             *     {} 内可以通过 break interrupted; 直接退出代码块
+             * </P>
+             */
             interrupted:
             {
                 for (Map.Entry<String, String> header : headersToSplitOn) {
-                    String sep = header.getKey();    // 标题标记，如"#"、"##"
-                    String name = header.getValue(); // 元数据中的键名
-
-                    // 判断是否为有效的标题行
+                    String sep = header.getKey();    // 标题标记，如 "#"、"##"
+                    String name = header.getValue(); // 元数据中的键名, 如 "title"、"subtitle"
+                    /**
+                     * 判断是否为有效的标题行
+                     * <P>
+                     *     前提: Markdown 标题都是以 sep 开头的,但是标题内容和 sep 之间会存在空格
+                     *     假设: sep = "##"
+                     *     strippedLine 需要以 "##" 开头,但 "###" 也满足这种情况,因此还需要增加需要满足 strippedLine是空标题行或者 sep 是空格的条件
+                     * </P>
+                     */
                     if (strippedLine.startsWith(sep) && (strippedLine.length() == sep.length() || strippedLine.charAt(sep.length()) == ' ')) {
                         if (name != null) {
                             // 计算当前标题级别（统计#的个数）
                             int currentHeaderLevel = (int) sep.chars().filter(ch -> ch == '#').count();
-
-                            // 维护标题栈：移除所有级别大于等于当前级别的标题
-                            // 这样可以正确处理标题层级关系，如从### 回退到 ##
+                            /**
+                             * 用于维护当前标题的父子层级关系
+                             * 【核心规则】：遇到新标题时,删除旧的同级标题和旧的子标题,只保留仍然有效的父标题
+                             *  例如: ## 安装
+                             *       ### Windows安装
+                             *       ## 使用
+                             *  1. 读取到 ## 使用 前，标题栈是： 安装（2级）、Windows安装（3级）
+                             *  2. 新标题“使用”是 2 级，所以执行：旧标题级别 >= 新标题级别
+                             *                          2.1 Windows安装：3 >= 2  删除
+                             *                          2.2 安装：2 >= 2         删除
+                             *  3. 然后加入新的“使用”, 标题栈变更: 使用（2级）
+                             */
                             while (!headerStack.isEmpty() && headerStack.get(headerStack.size() - 1).getLevel() >= currentHeaderLevel) {
                                 Header poppedHeader = headerStack.remove(headerStack.size() - 1);
                                 initialMetadata.remove(poppedHeader.getName());
@@ -229,9 +278,8 @@ public class MarkdownHeaderParentTextSplitter implements DocumentSplitter {
                             headerStack.add(headerType);
                             initialMetadata.put(name, headerType.getData());
                             initialMetadata.put(HEADER_LEVEL, currentHeaderLevel);
-                            // 为每个分段生成唯一ID，用于后续建立父子关系
-                            String currentChunkId = SnowflakeIdGenerator.getInstance().nextIdStr();
-                            initialMetadata.put(CHUNK_ID, currentChunkId);
+                            // 为当前分段生成唯一ID, 用于后续建立父子关系
+                            initialMetadata.put(CHUNK_ID, SnowflakeIdGenerator.getInstance().nextIdStr());
                         }
 
                         // 遇到新标题时，保存之前累积的内容
@@ -244,7 +292,6 @@ public class MarkdownHeaderParentTextSplitter implements DocumentSplitter {
                         if (!stripHeaders) {
                             currentContent.add(strippedLine);
                         }
-
                         break interrupted;
                     }
                 }
@@ -258,7 +305,6 @@ public class MarkdownHeaderParentTextSplitter implements DocumentSplitter {
                     currentContent.clear();
                 }
             }
-
             // 更新当前元数据为最新的标题信息
             currentMetadata = new HashMap<>(initialMetadata);
         }
@@ -284,7 +330,6 @@ public class MarkdownHeaderParentTextSplitter implements DocumentSplitter {
         if (chunkSize > 0) {
             segments = splitByChunkSize(segments);
         }
-
         return segments;
     }
 
@@ -317,7 +362,6 @@ public class MarkdownHeaderParentTextSplitter implements DocumentSplitter {
                 aggregatedChunks.add(line);
             }
         }
-
         return aggregatedChunks.stream()
                 .map(chunk -> new DocumentWithMetadata(chunk.getContent(), chunk.getMetadata()))
                 .collect(Collectors.toList());
@@ -353,20 +397,16 @@ public class MarkdownHeaderParentTextSplitter implements DocumentSplitter {
                 fullMetadata.put(CHUNK_ID, parentChunkId);
                 fullMetadata.put(SKIP_EMBEDDING, 1);
                 result.add(new DocumentWithMetadata(content, fullMetadata));
-
                 //拆分子分块
                 int start = 0;
                 while (start < content.length()) {
                     int end = Math.min(start + chunkSize, content.length());
                     String subContent = content.substring(start, end);
-
                     // 复制元数据并进行更新
                     Map<String, Object> subMetadata = new HashMap<>(segment.getMetadata());
                     subMetadata.put(CHUNK_ID, SnowflakeIdGenerator.getInstance().nextIdStr());
                     subMetadata.put(PARENT_CHUNK_ID, parentChunkId);
-
                     result.add(new DocumentWithMetadata(subContent, subMetadata));
-
                     if (end == content.length()) {
                         break;
                     }

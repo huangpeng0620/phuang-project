@@ -15,7 +15,11 @@ import static com.phuang.model.constant.MetadataKeyConstant.*;
 /**
  * Markdown文档分割器，基于标题层级进行文档分段
  * 支持保留元数据、父子分段关系等高级特性
- *
+ * <P>
+ *     在父子分段的基础上增加兄弟分段,同一个父分段下的多个子分段共享同一个 brotherChunkId
+ *     大多数情况下使用父子分段即可
+ *  @see MarkdownHeaderParentTextSplitter
+ * </P>
  * @author andyflury （https://github.com/langchain4j/langchain4j/issues/574 ）
  * @author Hollis, 增加对父子分段的支持
  */
@@ -73,7 +77,6 @@ public class MarkdownHeaderBrotherTextSplitter implements DocumentSplitter {
      */
     public MarkdownHeaderBrotherTextSplitter(Map<String, String> headersToSplitOn, boolean returnEachLine, boolean stripHeaders, boolean parentChildModel) {
         this(headersToSplitOn, returnEachLine, stripHeaders, parentChildModel, 0, 0);
-
     }
 
     public MarkdownHeaderBrotherTextSplitter(int chunkSize, int overlap) {
