@@ -176,7 +176,6 @@ public class MarkdownHeaderParentTextSplitter implements DocumentSplitter {
         for (DocumentWithMetadata segment : segments) {
             result.add(new TextSegment(segment.getContent(), Metadata.from(segment.getMetadata())));
         }
-
         return result;
     }
 

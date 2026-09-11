@@ -1,9 +1,10 @@
-package com.phuang.handler.rag;
+package com.phuang.handler.rag.retriever;
 
 import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.util.StrUtil;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.phuang.model.constant.MetadataKeyConstant;
 import com.phuang.service.KnowledgeSegmentService;
 import dev.langchain4j.data.document.Metadata;
@@ -27,6 +28,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
 
@@ -69,26 +71,25 @@ public class KnowEngineElasticsearchContentRetriever extends AbstractElasticsear
     private final KnowledgeSegmentService knowledgeSegmentService;
 
     /**
-     * Creates an instance of ElasticsearchContentRetriever using a RestClient.
+     * 使用 Elasticsearch RestClient 创建自定义内容检索器。
      *
-     * @param configuration  Elasticsearch retriever configuration to use (knn, script, full text, hybrid, hybrid with reranker)
-     * @param restClient     Elasticsearch Rest Client (mandatory)
-     * @param indexName      Elasticsearch index name (optional). Default value: "default".
-     *                       Index will be created automatically if not exists.
-     * @param embeddingModel Embedding model to be used by the retriever
-     * @param maxResults     Maximum number of results to retrieve
-     * @param minScore       Minimum score threshold for retrieved results
-     * @param filter         Filter to apply during retrieval
+     * @param configuration         Elasticsearch 检索配置，支持 KNN、脚本、全文、混合以及带重排的混合检索
+     * @param restClient            Elasticsearch RestClient 客户端，不能为空
+     * @param indexName             Elasticsearch 索引名称，不能为空
+     * @param embeddingModel        用于将查询文本转换为向量的 Embedding 模型
+     * @param maxResults            单次检索返回的最大结果数
+     * @param minScore              检索结果的最低相关性分数
+     * @param filter                检索时使用的元数据过滤条件
+     * @param knowledgeSegmentService 知识分段服务，用于根据父分段 ID 获取完整文本
      */
-    public KnowEngineElasticsearchContentRetriever(
-            ElasticsearchConfiguration configuration,
-            RestClient restClient,
-            String indexName,
-            EmbeddingModel embeddingModel,
-            final int maxResults,
-            final double minScore,
-            final Filter filter,
-            KnowledgeSegmentService knowledgeSegmentService) {
+    public KnowEngineElasticsearchContentRetriever(ElasticsearchConfiguration configuration,
+                                                   RestClient restClient,
+                                                   String indexName,
+                                                   EmbeddingModel embeddingModel,
+                                                   final int maxResults,
+                                                   final double minScore,
+                                                   final Filter filter,
+                                                   KnowledgeSegmentService knowledgeSegmentService) {
         this.embeddingModel = embeddingModel;
         this.maxResults = maxResults;
         this.minScore = minScore;
@@ -120,37 +121,31 @@ public class KnowEngineElasticsearchContentRetriever extends AbstractElasticsear
             // 向量检索模式
             searchContents = mapResultsToContentList(this.search(request));
         }
-        return proccessParentAndBrotherContent(searchContents);
+        return proccessParentContent(searchContents);
     }
 
     /**
      * 父子分段内容处理
-     * @param searchContents rag检索到的子分段内容
+     * @param searchContents rag 检索到的子分段内容
      * @return
      */
     @NotNull
-    private List<Content> proccessParentAndBrotherContent(List<Content> searchContents) {
+    private List<Content> proccessParentContent(List<Content> searchContents) {
         // 去重并按文本内容排序
         searchContents = searchContents.stream().distinct().sorted(Comparator.comparing(content -> content.textSegment().text())).toList();
         List<Content> finalContents = Lists.newArrayList(searchContents);
 
-        // 兄弟分段缓存和父分段缓存，避免重复查询
-        Map<String, List<Content>> parentDocMap = new HashMap<>();
-        Map<String, List<Content>> brotherDocMap = new HashMap<>();
+        // 父分段缓存，避免重复查询
+        Map<String, List<Content>> parentDocMap = Maps.newHashMap();
 
         Iterator<Content> iterator = searchContents.iterator();
         for (; iterator.hasNext(); ) {
             Content content = iterator.next();
             /**
-             * 兄弟分段处理: todo
-             */
-
-
-            /**
              * 父子分段处理:使用父分段的完整文本替换子分段,使得子分段获取更完整的语义
              */
             String parentChunkId = content.textSegment().metadata().getString(MetadataKeyConstant.PARENT_CHUNK_ID);
-            if(Objects.nonNull(parentChunkId)){
+            if (Objects.nonNull(parentChunkId)) {
                 List<Content> cachedParentDocs = parentDocMap.get(parentChunkId);
                 if (CollectionUtil.isNotEmpty(cachedParentDocs)) {
                     // 不为空表示已经缓存过这个父分段了,说明已经添加过了,无需重复添加
@@ -158,7 +153,7 @@ public class KnowEngineElasticsearchContentRetriever extends AbstractElasticsear
                 } else if (Objects.nonNull(knowledgeSegmentService)) {
                     //获取父分段内容
                     String segmentText = knowledgeSegmentService.getTextByChunkId(parentChunkId);
-                    if(StrUtil.isNotEmpty(segmentText)){
+                    if (StrUtil.isNotEmpty(segmentText)) {
                         // 用父分段文本构造新的 Content，替换当前的子分段内容
                         Metadata metadata = content.textSegment().metadata();
                         metadata.remove(MetadataKeyConstant.PARENT_CHUNK_ID);
@@ -168,6 +163,7 @@ public class KnowEngineElasticsearchContentRetriever extends AbstractElasticsear
                         parentDocMap.put(parentChunkId, parentDocs);
                         finalContents.remove(content);
                         finalContents.addAll(parentDocs);
+                        log.info("父分段替换完成, parentChunkId: {}", parentChunkId);
                     } else {
                         log.warn("parentChunk not found in Redis, chunkId: {}", parentChunkId);
                         finalContents.remove(content);
@@ -175,6 +171,18 @@ public class KnowEngineElasticsearchContentRetriever extends AbstractElasticsear
                 }
             }
         }
+
+        /**
+         * 父分段替换会改变结果集合的元素和顺序；父分段沿用命中子分段的检索分数,
+         * 因此这里按 SCORE 从高到低重新排序，保证相关性更高的内容优先返回给后续 RAG 流程
+         */
+        finalContents = finalContents.stream().sorted(new Comparator<Content>() {
+            @Override
+            public int compare(Content content1, Content content2) {
+                // 参数顺序为 score2、score1，实现降序排列
+                return Double.compare((double) content2.metadata().get(ContentMetadata.SCORE), (double) content1.metadata().get(ContentMetadata.SCORE));
+            }
+        }).collect(Collectors.toList());
         return finalContents;
     }
 
@@ -265,9 +273,10 @@ public class KnowEngineElasticsearchContentRetriever extends AbstractElasticsear
     }
 
     /**
-     * 将检索结果转化为 langchain4j 的 content 集合
+     * 将 Elasticsearch 向量检索结果转换成 LangChain4j RAG 使用的 Content 列表
      * <P>
-     *     直接将默认 ElasticsearchContentRetriever中的 mapResultsToContentList复制过来使用
+     *     直接将默认 ElasticsearchContentRetriever中的 mapResultsToContentList 复制过来使用
+     *     1. 过滤相关性分数,只保留大于 minScore 的结果
      * </P>
      * @param searchResult
      * @return
@@ -283,5 +292,79 @@ public class KnowEngineElasticsearchContentRetriever extends AbstractElasticsear
                 .toList();
         log.debug("Found [{}] relevant documents in Elasticsearch index [{}].", result.size(), indexName);
         return result;
+    }
+
+    public static KnowEngineElasticsearchContentRetriever.Builder builder() {
+        return new KnowEngineElasticsearchContentRetriever.Builder();
+    }
+
+    public static class Builder {
+
+        private RestClient restClient;
+        private String indexName = "default";
+        private ElasticsearchConfiguration configuration =
+                ElasticsearchConfigurationKnn.builder().build();
+        private EmbeddingModel embeddingModel;
+        private int maxResults;
+        private double minScore;
+        private Filter filter;
+        private KnowledgeSegmentService knowledgeSegmentService;
+
+        /**
+         * @param restClient Elasticsearch RestClient.
+         * @return builder
+         */
+        public KnowEngineElasticsearchContentRetriever.Builder restClient(RestClient restClient) {
+            this.restClient = restClient;
+            return this;
+        }
+
+        /**
+         * @param indexName Elasticsearch index name (optional). Default value: "default".
+         * @return builder
+         */
+        public KnowEngineElasticsearchContentRetriever.Builder indexName(String indexName) {
+            this.indexName = indexName;
+            return this;
+        }
+
+        /**
+         * @param configuration the configuration to use
+         * @return builder
+         */
+        public KnowEngineElasticsearchContentRetriever.Builder configuration(ElasticsearchConfiguration configuration) {
+            this.configuration = configuration;
+            return this;
+        }
+
+        public KnowEngineElasticsearchContentRetriever.Builder embeddingModel(EmbeddingModel embeddingModel) {
+            this.embeddingModel = embeddingModel;
+            return this;
+        }
+
+        public KnowEngineElasticsearchContentRetriever.Builder maxResults(int maxResults) {
+            this.maxResults = maxResults;
+            return this;
+        }
+
+        public KnowEngineElasticsearchContentRetriever.Builder minScore(double minScore) {
+            this.minScore = minScore;
+            return this;
+        }
+
+        public KnowEngineElasticsearchContentRetriever.Builder filter(Filter filter) {
+            this.filter = filter;
+            return this;
+        }
+
+        public KnowEngineElasticsearchContentRetriever.Builder knowledgeSegmentService(KnowledgeSegmentService knowledgeSegmentService) {
+            this.knowledgeSegmentService = knowledgeSegmentService;
+            return this;
+        }
+
+        public KnowEngineElasticsearchContentRetriever build() {
+            return new KnowEngineElasticsearchContentRetriever(
+                    configuration, restClient, indexName, embeddingModel, maxResults, minScore, filter, knowledgeSegmentService);
+        }
     }
 }

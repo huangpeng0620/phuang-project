@@ -1,6 +1,6 @@
 package com.phuang;
 
-import com.phuang.handler.rag.KnowEngineQueryTransformer;
+import com.phuang.handler.rag.transformer.KnowEngineQueryTransformer;
 import org.springframework.beans.BeansException;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
