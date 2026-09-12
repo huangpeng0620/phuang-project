@@ -152,7 +152,7 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
          *     scoreAll(fusedContents, Q1.text())
          *     那么问题是重排序时到底采用那个查询作为依据,如果随便选择,结果可能不同,因此默认代码拒绝自行猜测,调用方必须明确告诉它采用什么策略,例如:始终使用第一个查询:
          *     .querySelector(map -> map.keySet().iterator().next())
-         * 大多数情况下都可以使用【原始查询】作为文档结构重排序的依据;
+         * 大多数情况下都可以使用【改写后的问题】作为文档结构重排序的依据;
          * </P>
          */
         Query query = querySelector.apply(queryToContents);

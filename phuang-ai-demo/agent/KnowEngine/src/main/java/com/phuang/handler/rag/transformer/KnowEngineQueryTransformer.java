@@ -114,7 +114,7 @@ public class KnowEngineQueryTransformer implements QueryTransformer {
         try {
             return applicationContext.getBean(ChatMessageService.class);
         } catch (Exception e) {
-            log.warn("获取 ChatMessageService 失败", e);
+            log.error("获取 ChatMessageService 失败", e);
             return null;
         }
     }

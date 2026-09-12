@@ -2,28 +2,59 @@ package com.phuang.service.chat.impl;
 
 import cn.hutool.core.util.StrUtil;
 import com.phuang.handler.memory.DatabaseChatMemoryStore;
+import com.phuang.handler.rag.PromptHandler;
+import com.phuang.handler.rag.aggregator.BgeScoringModel;
+import com.phuang.handler.rag.aggregator.KnowEngineReRankingContentAggregator;
+import com.phuang.handler.rag.retriever.KnowEngineElasticsearchContentRetriever;
+import com.phuang.handler.rag.retriever.KnowEngineSqlDatabaseContentRetriever;
+import com.phuang.handler.rag.router.KnowEngineQueryRouter;
+import com.phuang.handler.rag.transformer.KnowEngineQueryTransformer;
+import com.phuang.model.dto.ChatParam;
 import com.phuang.model.dto.IntentRecognitionResult;
 import com.phuang.model.enums.ChatSource;
+import com.phuang.model.enums.RoleEnum;
+import com.phuang.service.KnowledgeSegmentService;
 import com.phuang.service.ai.CommonChatService;
 import com.phuang.service.ai.IntentRecognitionService;
+import com.phuang.service.ai.KnowEngineChatAiService;
 import com.phuang.service.ai.TitleSummaryService;
 import com.phuang.service.chat.ChatApplicationService;
 import com.phuang.service.chat.ChatConversationService;
 import com.phuang.service.chat.ChatMessageService;
+import com.phuang.util.DocumentPermissionUtils;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
+import dev.langchain4j.model.input.PromptTemplate;
 import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.langchain4j.model.openai.OpenAiEmbeddingModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
+import dev.langchain4j.rag.DefaultRetrievalAugmentor;
+import dev.langchain4j.rag.RetrievalAugmentor;
+import dev.langchain4j.rag.content.injector.ContentInjector;
+import dev.langchain4j.rag.content.injector.DefaultContentInjector;
 import dev.langchain4j.service.AiServices;
+import dev.langchain4j.store.embedding.elasticsearch.ElasticsearchConfigurationFullText;
+import dev.langchain4j.store.embedding.elasticsearch.ElasticsearchConfigurationKnn;
+import dev.langchain4j.store.embedding.filter.Filter;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.elasticsearch.client.RestClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
+import javax.sql.DataSource;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.function.Consumer;
+
+import static com.phuang.config.ElasticSearchConfiguration.INDEX_NAME;
+import static com.phuang.model.constant.MetadataKeyConstant.ACCESSIBLE_BY;
+import static dev.langchain4j.store.embedding.filter.MetadataFilterBuilder.metadataKey;
 
 /**
  *
@@ -50,13 +81,22 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
     @Resource
     private CommonChatService commonChatService;
 
+    @Resource
+    private PromptHandler promptHandler;
+
+    @Resource
+    private RestClient restClient;
+
+    @Resource
+    private OpenAiEmbeddingModel openAiEmbeddingModel;
+
+    @Resource
+    private KnowledgeSegmentService knowledgeSegmentService;
+
+    @Resource
+    private DataSource dataSource;
+
     private IntentRecognitionService intentRecognitionService;
-
-    @Value("${langchain4j.open-ai.chat-model.api-key}")
-    private String chatModelApiKey;
-
-    @Value("${langchain4j.open-ai.chat-model.base-url}")
-    private String chatModelBaseUrl;
 
     /**
      * RAG 对话标题生成专用 model,采用轻量级模型,速度较快
@@ -67,6 +107,15 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
      * RAG 对话生成专用 ChatModel，使用更强的模型和较低温度以提升回答质量
      */
     private StreamingChatModel ragChatModel;
+
+    @Value("classpath:prompts/text-to-sql-prompt.txt")
+    private org.springframework.core.io.Resource textToSqlPrompt;
+
+    @Value("${langchain4j.open-ai.chat-model.api-key}")
+    private String chatModelApiKey;
+
+    @Value("${langchain4j.open-ai.chat-model.base-url}")
+    private String chatModelBaseUrl;
 
     @PostConstruct
     public void init() {
@@ -149,5 +198,113 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
 
     public Flux<String> doChat(ChatParam chatParam) {
 
+        Consumer<String> processCallback = new Consumer<String>() {
+            @Override
+            public void accept(String s) {
+            }
+        };
+
+        //构造权限过滤
+        Filter accessibleByFilter = buildFilter(chatParam);
+
+        //构建查询改写器
+        KnowEngineQueryTransformer knowEngineQueryTransformer = new KnowEngineQueryTransformer(chatModel, chatParam.getMessageId(), processCallback);
+
+        // 构造查询路由器
+        KnowEngineElasticsearchContentRetriever embeddingRetriever = KnowEngineElasticsearchContentRetriever.builder()
+                .configuration(ElasticsearchConfigurationKnn.builder().build())
+                .maxResults(5)
+                .minScore(0.5)
+                .embeddingModel(openAiEmbeddingModel)
+                .restClient(restClient)
+                .indexName(INDEX_NAME)
+                .knowledgeSegmentService(knowledgeSegmentService)
+                .filter(accessibleByFilter)
+                .build();
+
+        KnowEngineElasticsearchContentRetriever fullTextRetriever = KnowEngineElasticsearchContentRetriever.builder()
+                .configuration(ElasticsearchConfigurationFullText.builder().build())
+                .restClient(restClient)
+                .embeddingModel(openAiEmbeddingModel)
+                .knowledgeSegmentService(knowledgeSegmentService)
+                .indexName(INDEX_NAME)
+                .filter(accessibleByFilter)
+                .maxResults(5)
+                .build();
+
+        KnowEngineSqlDatabaseContentRetriever sqlRetriever = null;
+        try {
+            sqlRetriever = KnowEngineSqlDatabaseContentRetriever.builder()
+                    .dataSource(dataSource)
+                    .promptTemplate(new PromptTemplate(textToSqlPrompt.getContentAsString(StandardCharsets.UTF_8)))
+                    .databaseStructure(null)
+                    .chatModel(chatModel)
+                    .fallbackRetriever(embeddingRetriever)
+                    .build();
+        } catch (IOException e) {
+            log.error("Error creating SQL retriever", e);
+        }
+
+        KnowEngineQueryRouter knowEngineQueryRouter = new KnowEngineQueryRouter(Arrays.asList(embeddingRetriever, fullTextRetriever, sqlRetriever),
+                chatModel, processCallback);
+
+        //构造融合重排序器
+        KnowEngineReRankingContentAggregator knowEngineReRankingContentAggregator = KnowEngineReRankingContentAggregator.builder()
+                .scoringModel(BgeScoringModel.getInstance())
+                .minScore(0.6)
+                .maxResults(5)
+                .querySelector(queryToContents -> queryToContents.keySet().iterator().next())
+                .build();
+
+        //构造上下文融合器
+        ContentInjector contentInjector = new DefaultContentInjector();
+
+        // 组装 RAG 流程编排器
+        RetrievalAugmentor retrievalAugmentor = DefaultRetrievalAugmentor.builder()
+                .queryTransformer(knowEngineQueryTransformer)
+                .queryRouter(knowEngineQueryRouter)
+                .contentAggregator(knowEngineReRankingContentAggregator)
+                .contentInjector(contentInjector)
+                .build();
+
+        //获取上下文融合提示词
+        String prompt = promptHandler.getPrompt(chatParam.getIntentRecognitionResult());
+
+        KnowEngineChatAiService knowEngineChatAiService = AiServices.builder(KnowEngineChatAiService.class)
+                .streamingChatModel(ragChatModel)
+                .chatMemoryProvider(memoryId -> MessageWindowChatMemory.builder()
+                        .id(memoryId)
+                        .maxMessages(10)
+                        .chatMemoryStore(databaseChatMemoryStore)
+                        .build())
+                .systemMessage(prompt)
+                .retrievalAugmentor(retrievalAugmentor)
+                .build();
+
+        return knowEngineChatAiService.streamChat(chatParam.getConversationId(), chatParam.getContent());
+    }
+
+    /**
+     * 构造权限过滤器
+     *
+     * @param chatParam
+     * @return
+     */
+    private Filter buildFilter(ChatParam chatParam) {
+        // 默认权限过滤器：允许访客权限
+        Filter permissionFilter = metadataKey(ACCESSIBLE_BY).isEqualTo(RoleEnum.VISITOR.name());
+
+        // 根据用户角色获取权限 todo
+        //RoleEnum roleEnum = userRoleService.getUserRole(chatParam);
+
+        // 获取该文档支持的所有权限
+        String[] permissions = DocumentPermissionUtils.getDocumentAccessiblePermission(null);
+        for (String permission : permissions) {
+            // 非访客权限时，将权限用or连接，表示支持多种权限
+            if (!RoleEnum.VISITOR.name().equals(permission)) {
+                permissionFilter = permissionFilter.or(metadataKey(ACCESSIBLE_BY).isEqualTo(permission));
+            }
+        }
+        return permissionFilter;
     }
 }
