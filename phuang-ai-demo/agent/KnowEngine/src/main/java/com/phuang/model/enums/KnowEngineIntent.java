@@ -2,6 +2,9 @@ package com.phuang.model.enums;
 
 import com.phuang.model.dto.IntentRecognitionResult;
 
+/**
+ * 意图提示词枚举
+ */
 public enum KnowEngineIntent {
 
     /**

@@ -146,4 +146,8 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
         }
         return null;
     }
+
+    public Flux<String> doChat(ChatParam chatParam) {
+
+    }
 }
