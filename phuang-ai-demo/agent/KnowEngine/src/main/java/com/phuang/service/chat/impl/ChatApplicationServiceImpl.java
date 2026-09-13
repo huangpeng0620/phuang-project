@@ -44,6 +44,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.elasticsearch.client.RestClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -53,6 +54,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static com.phuang.config.ElasticSearchConfiguration.INDEX_NAME;
@@ -232,105 +234,135 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
         return doChat(chatParam);
     }
 
+    /**
+     * 流式对话
+     * <p>
+     * 使用 Flux.create() 将 RAG 管道各环节的进度消息与 LLM 流式输出桥接到同一个 Flux 中，
+     * 确保进度消息在对应的 LLM token 之前到达前端。
+     * <p>
+     * 进度推送环节：
+     * <ol>
+     *   <li>问题改写 — 由 {@link KnowEngineQueryTransformer} 发送</li>
+     *   <li>问题路由 — 由 {@link KnowEngineQueryRouter} 发送</li>
+     *   <li>排序筛选 — 由 {@link ProgressAwareContentAggregator} 发送</li>
+     *   <li>生成回答 — 由 {@link ProgressAwareContentAggregator} 在聚合完成后发送</li>
+     * </ol>
+     *
+     * @param chatParam 对话参数
+     */
     public Flux<String> doChat(ChatParam chatParam) {
+        return Flux.<String>create(sink -> {
+                    Consumer<String> processCallback = sink::next;
 
-        Consumer<String> processCallback = new Consumer<String>() {
-            @Override
-            public void accept(String s) {
-            }
-        };
+                    //构造权限过滤
+                    Filter accessibleByFilter = buildFilter(chatParam);
 
-        //构造权限过滤
-        Filter accessibleByFilter = buildFilter(chatParam);
+                    //构建查询改写器
+                    KnowEngineQueryTransformer knowEngineQueryTransformer = new KnowEngineQueryTransformer(chatModel, chatParam.getMessageId(), processCallback);
 
-        //构建查询改写器
-        KnowEngineQueryTransformer knowEngineQueryTransformer = new KnowEngineQueryTransformer(chatModel, chatParam.getMessageId(), processCallback);
+                    // 构造查询路由器
+                    ProgressAwareContentRetriever embeddingRetriever = ProgressAwareContentRetriever.builder()
+                            .delegate(KnowEngineElasticsearchContentRetriever.builder()
+                                    .configuration(ElasticsearchConfigurationKnn.builder().build())
+                                    .maxResults(5)
+                                    .minScore(0.5)
+                                    .embeddingModel(openAiEmbeddingModel)
+                                    .restClient(restClient)
+                                    .indexName(INDEX_NAME)
+                                    .knowledgeSegmentService(knowledgeSegmentService)
+                                    .filter(accessibleByFilter)
+                                    .build())
+                            .progressCallback(processCallback)
+                            .build();
 
-        // 构造查询路由器
-        ProgressAwareContentRetriever embeddingRetriever = ProgressAwareContentRetriever.builder()
-                .delegate(KnowEngineElasticsearchContentRetriever.builder()
-                        .configuration(ElasticsearchConfigurationKnn.builder().build())
-                        .maxResults(5)
-                        .minScore(0.5)
-                        .embeddingModel(openAiEmbeddingModel)
-                        .restClient(restClient)
-                        .indexName(INDEX_NAME)
-                        .knowledgeSegmentService(knowledgeSegmentService)
-                        .filter(accessibleByFilter)
-                        .build())
-                .progressCallback(processCallback)
-                .build();
+                    ProgressAwareContentRetriever fullTextRetriever = ProgressAwareContentRetriever.builder()
+                            .delegate(KnowEngineElasticsearchContentRetriever.builder()
+                                    .configuration(ElasticsearchConfigurationFullText.builder().build())
+                                    .restClient(restClient)
+                                    .embeddingModel(openAiEmbeddingModel)
+                                    .knowledgeSegmentService(knowledgeSegmentService)
+                                    .indexName(INDEX_NAME)
+                                    .filter(accessibleByFilter)
+                                    .maxResults(5)
+                                    .build())
+                            .progressCallback(processCallback)
+                            .build();
 
-        ProgressAwareContentRetriever fullTextRetriever = ProgressAwareContentRetriever.builder()
-                .delegate(KnowEngineElasticsearchContentRetriever.builder()
-                        .configuration(ElasticsearchConfigurationFullText.builder().build())
-                        .restClient(restClient)
-                        .embeddingModel(openAiEmbeddingModel)
-                        .knowledgeSegmentService(knowledgeSegmentService)
-                        .indexName(INDEX_NAME)
-                        .filter(accessibleByFilter)
-                        .maxResults(5)
-                        .build())
-                .progressCallback(processCallback)
-                .build();
+                    ProgressAwareContentRetriever sqlRetriever = null;
+                    try {
+                        sqlRetriever = ProgressAwareContentRetriever.builder().delegate(KnowEngineSqlDatabaseContentRetriever.builder()
+                                        .dataSource(dataSource)
+                                        .promptTemplate(new PromptTemplate(textToSqlPrompt.getContentAsString(StandardCharsets.UTF_8)))
+                                        .databaseStructure(null)
+                                        .chatModel(chatModel)
+                                        .fallbackRetriever(embeddingRetriever)
+                                        .build())
+                                .progressCallback(processCallback)
+                                .build();
+                    } catch (IOException e) {
+                        log.error("Error creating SQL retriever", e);
+                    }
 
-        ProgressAwareContentRetriever sqlRetriever = null;
-        try {
-            sqlRetriever = ProgressAwareContentRetriever.builder().delegate(KnowEngineSqlDatabaseContentRetriever.builder()
-                            .dataSource(dataSource)
-                            .promptTemplate(new PromptTemplate(textToSqlPrompt.getContentAsString(StandardCharsets.UTF_8)))
-                            .databaseStructure(null)
-                            .chatModel(chatModel)
-                            .fallbackRetriever(embeddingRetriever)
-                            .build())
-                    .progressCallback(processCallback)
-                    .build();
-        } catch (IOException e) {
-            log.error("Error creating SQL retriever", e);
-        }
+                    KnowEngineQueryRouter knowEngineQueryRouter = new KnowEngineQueryRouter(Arrays.asList(embeddingRetriever, fullTextRetriever, sqlRetriever),
+                            chatModel, processCallback);
 
-        KnowEngineQueryRouter knowEngineQueryRouter = new KnowEngineQueryRouter(Arrays.asList(embeddingRetriever, fullTextRetriever, sqlRetriever),
-                chatModel, processCallback);
+                    //构造融合重排序器
+                    ProgressAwareContentAggregator knowEngineReRankingContentAggregator = ProgressAwareContentAggregator.builder()
+                            .assistantMessageId(chatParam.getAssistantMessageId())
+                            .progressCallback(processCallback)
+                            .chatMessageService(chatMessageService)
+                            .delegate(KnowEngineReRankingContentAggregator.builder()
+                                    .scoringModel(BgeScoringModel.getInstance())
+                                    .minScore(0.6)
+                                    .maxResults(5)
+                                    .querySelector(queryToContents -> queryToContents.keySet().iterator().next())
+                                    .build())
+                            .build();
 
-        //构造融合重排序器
-        ProgressAwareContentAggregator knowEngineReRankingContentAggregator = ProgressAwareContentAggregator.builder()
-                .assistantMessageId(chatParam.getAssistantMessageId())
-                .progressCallback(processCallback)
-                .chatMessageService(chatMessageService)
-                .delegate(KnowEngineReRankingContentAggregator.builder()
-                        .scoringModel(BgeScoringModel.getInstance())
-                        .minScore(0.6)
-                        .maxResults(5)
-                        .querySelector(queryToContents -> queryToContents.keySet().iterator().next())
-                        .build())
-                .build();
+                    //构造上下文融合器
+                    ContentInjector contentInjector = new DefaultContentInjector();
 
-        //构造上下文融合器
-        ContentInjector contentInjector = new DefaultContentInjector();
+                    // 组装 RAG 流程编排器
+                    RetrievalAugmentor retrievalAugmentor = DefaultRetrievalAugmentor.builder()
+                            .queryTransformer(knowEngineQueryTransformer)
+                            .queryRouter(knowEngineQueryRouter)
+                            .contentAggregator(knowEngineReRankingContentAggregator)
+                            .contentInjector(contentInjector)
+                            .build();
 
-        // 组装 RAG 流程编排器
-        RetrievalAugmentor retrievalAugmentor = DefaultRetrievalAugmentor.builder()
-                .queryTransformer(knowEngineQueryTransformer)
-                .queryRouter(knowEngineQueryRouter)
-                .contentAggregator(knowEngineReRankingContentAggregator)
-                .contentInjector(contentInjector)
-                .build();
+                    //获取上下文融合提示词
+                    String prompt = promptHandler.getPrompt(chatParam.getIntentRecognitionResult());
 
-        //获取上下文融合提示词
-        String prompt = promptHandler.getPrompt(chatParam.getIntentRecognitionResult());
+                    KnowEngineChatAiService knowEngineChatAiService = AiServices.builder(KnowEngineChatAiService.class)
+                            .streamingChatModel(ragChatModel)
+                            .chatMemoryProvider(memoryId -> MessageWindowChatMemory.builder()
+                                    .id(memoryId)
+                                    .maxMessages(10)
+                                    .chatMemoryStore(databaseChatMemoryStore)
+                                    .build())
+                            .systemMessage(prompt)
+                            .retrievalAugmentor(retrievalAugmentor)
+                            .build();
 
-        KnowEngineChatAiService knowEngineChatAiService = AiServices.builder(KnowEngineChatAiService.class)
-                .streamingChatModel(ragChatModel)
-                .chatMemoryProvider(memoryId -> MessageWindowChatMemory.builder()
-                        .id(memoryId)
-                        .maxMessages(10)
-                        .chatMemoryStore(databaseChatMemoryStore)
-                        .build())
-                .systemMessage(prompt)
-                .retrievalAugmentor(retrievalAugmentor)
-                .build();
+                    //订阅 LLM 流式输出，桥接到 sink
+                    AtomicBoolean firstToken = new AtomicBoolean(Boolean.TRUE);
+                    StringBuilder contentBuilder = new StringBuilder();
+                    Disposable disposable = knowEngineChatAiService.streamChat(chatParam.getConversationId(), chatParam.getContent())
+                            .doOnNext(token -> {
+                                // 首个 token 到达时，如果之前没有发出"正在生成回答"，则补发
+                                // （正常情况下由 ProgressAwareContentAggregator 已发出，此处为兜底）
+                                if (firstToken.compareAndSet(true, false)) {
+                                    // 标记已开始接收 token
+                                }
+                                contentBuilder.append(token);
+                            })
+                            .doOnComplete(() -> chatMessageService.updateContent(chatParam.getAssistantMessageId(), contentBuilder.toString()))
+                            .subscribe(sink::next, sink::error, sink::complete);
 
-        return knowEngineChatAiService.streamChat(chatParam.getConversationId(), chatParam.getContent());
+                    // 取消时同步取消内部订阅
+                    sink.onCancel(disposable::dispose);
+                }).subscribeOn(Schedulers.boundedElastic())
+                .publishOn(Schedulers.parallel());
     }
 
     /**
