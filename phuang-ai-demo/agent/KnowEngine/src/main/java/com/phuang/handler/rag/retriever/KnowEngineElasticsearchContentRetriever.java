@@ -22,6 +22,8 @@ import dev.langchain4j.store.embedding.elasticsearch.*;
 import dev.langchain4j.store.embedding.filter.Filter;
 import dev.langchain4j.store.embedding.filter.comparison.IsEqualTo;
 import dev.langchain4j.store.embedding.filter.logical.Or;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import org.elasticsearch.client.RestClient;
 import org.jetbrains.annotations.NotNull;
@@ -55,12 +57,14 @@ import static java.util.stream.Collectors.toList;
  * @author huangpeng
  * @since 2026/9/9
  */
+@EqualsAndHashCode(callSuper = true)
+@Data
 @Slf4j
 public class KnowEngineElasticsearchContentRetriever extends AbstractElasticsearchEmbeddingStore implements ContentRetriever {
 
     private final EmbeddingModel embeddingModel;
 
-    protected ElasticsearchConfiguration configuration;
+    private ElasticsearchConfiguration configuration;
 
     private final int maxResults;
 
@@ -82,6 +86,7 @@ public class KnowEngineElasticsearchContentRetriever extends AbstractElasticsear
      * @param filter                检索时使用的元数据过滤条件
      * @param knowledgeSegmentService 知识分段服务，用于根据父分段 ID 获取完整文本
      */
+    @lombok.Builder
     public KnowEngineElasticsearchContentRetriever(ElasticsearchConfiguration configuration,
                                                    RestClient restClient,
                                                    String indexName,
@@ -292,79 +297,5 @@ public class KnowEngineElasticsearchContentRetriever extends AbstractElasticsear
                 .toList();
         log.debug("Found [{}] relevant documents in Elasticsearch index [{}].", result.size(), indexName);
         return result;
-    }
-
-    public static KnowEngineElasticsearchContentRetriever.Builder builder() {
-        return new KnowEngineElasticsearchContentRetriever.Builder();
-    }
-
-    public static class Builder {
-
-        private RestClient restClient;
-        private String indexName = "default";
-        private ElasticsearchConfiguration configuration =
-                ElasticsearchConfigurationKnn.builder().build();
-        private EmbeddingModel embeddingModel;
-        private int maxResults;
-        private double minScore;
-        private Filter filter;
-        private KnowledgeSegmentService knowledgeSegmentService;
-
-        /**
-         * @param restClient Elasticsearch RestClient.
-         * @return builder
-         */
-        public KnowEngineElasticsearchContentRetriever.Builder restClient(RestClient restClient) {
-            this.restClient = restClient;
-            return this;
-        }
-
-        /**
-         * @param indexName Elasticsearch index name (optional). Default value: "default".
-         * @return builder
-         */
-        public KnowEngineElasticsearchContentRetriever.Builder indexName(String indexName) {
-            this.indexName = indexName;
-            return this;
-        }
-
-        /**
-         * @param configuration the configuration to use
-         * @return builder
-         */
-        public KnowEngineElasticsearchContentRetriever.Builder configuration(ElasticsearchConfiguration configuration) {
-            this.configuration = configuration;
-            return this;
-        }
-
-        public KnowEngineElasticsearchContentRetriever.Builder embeddingModel(EmbeddingModel embeddingModel) {
-            this.embeddingModel = embeddingModel;
-            return this;
-        }
-
-        public KnowEngineElasticsearchContentRetriever.Builder maxResults(int maxResults) {
-            this.maxResults = maxResults;
-            return this;
-        }
-
-        public KnowEngineElasticsearchContentRetriever.Builder minScore(double minScore) {
-            this.minScore = minScore;
-            return this;
-        }
-
-        public KnowEngineElasticsearchContentRetriever.Builder filter(Filter filter) {
-            this.filter = filter;
-            return this;
-        }
-
-        public KnowEngineElasticsearchContentRetriever.Builder knowledgeSegmentService(KnowledgeSegmentService knowledgeSegmentService) {
-            this.knowledgeSegmentService = knowledgeSegmentService;
-            return this;
-        }
-
-        public KnowEngineElasticsearchContentRetriever build() {
-            return new KnowEngineElasticsearchContentRetriever(
-                    configuration, restClient, indexName, embeddingModel, maxResults, minScore, filter, knowledgeSegmentService);
-        }
     }
 }

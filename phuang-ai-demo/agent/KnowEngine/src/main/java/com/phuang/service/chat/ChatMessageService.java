@@ -23,4 +23,6 @@ public interface ChatMessageService extends IService<ChatMessageEntity> {
     void deleteMessagesByConversationId(String conversationId);
 
     void updateTransformContent(String chatMessageId, String newQuery);
+
+    void updateContent(String aiMessageId, String string);
 }

@@ -4,7 +4,10 @@ import dev.langchain4j.experimental.rag.content.retriever.sql.SqlDatabaseContent
 import dev.langchain4j.rag.content.Content;
 import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.rag.query.Query;
-import dev.langchain4j.store.embedding.elasticsearch.AbstractElasticsearchEmbeddingStore;
+import dev.langchain4j.store.embedding.elasticsearch.ElasticsearchConfiguration;
+import dev.langchain4j.store.embedding.elasticsearch.ElasticsearchConfigurationFullText;
+import dev.langchain4j.store.embedding.elasticsearch.ElasticsearchConfigurationKnn;
+import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -32,13 +35,23 @@ public class ProgressAwareContentRetriever implements ContentRetriever {
 
     /**
      * 确保路由进度只发送一次
+     * <P>
+     *     由于问题改写流程中可能将原始问题改成多个,这样一次RAG流程中可能同一个检索器需要执行多次,因此可以避免同一个检索器发送多次进度通知
+     * </P>
      */
     private final AtomicBoolean embeddingProgressSent = new AtomicBoolean(false);
     private final AtomicBoolean sqlProgressSent = new AtomicBoolean(false);
     private final AtomicBoolean neo4jProgressSent = new AtomicBoolean(false);
 
+    /**
+     * 创建带进度通知能力的 Retriever 装饰器。
+     *
+     * @param delegate         实际执行检索的 Retriever，不能为空
+     * @param progressCallback 检索进度回调；为空时仅执行检索，不发送进度消息
+     */
+    @Builder
     public ProgressAwareContentRetriever(ContentRetriever delegate, Consumer<String> progressCallback) {
-        this.delegate = delegate;
+        this.delegate = Objects.requireNonNull(delegate, "delegate must not be null");
         this.progressCallback = progressCallback;
     }
 
@@ -70,10 +83,16 @@ public class ProgressAwareContentRetriever implements ContentRetriever {
                         log.info("[PROGRESS]:正在检索【knowEngineNeo4jContentRetriever】数据库内容...");
                     }
                 }
-                case AbstractElasticsearchEmbeddingStore abstractElasticsearchEmbeddingStore -> {
+                case KnowEngineElasticsearchContentRetriever knowEngineElasticsearchContentRetriever -> {
+                    ElasticsearchConfiguration configuration = knowEngineElasticsearchContentRetriever.getConfiguration();
                     if (embeddingProgressSent.compareAndSet(false, true)) {
-                        progressCallback.accept("[PROGRESS]:正在检索知识库内容...");
-                        log.info("[PROGRESS]:正在检索【abstractElasticsearchEmbeddingStore】知识库内容...");
+                        if (configuration instanceof ElasticsearchConfigurationKnn) {
+                            progressCallback.accept("[PROGRESS]:正在向量检索向知识库内容...");
+                            log.info("[PROGRESS]:正在向量检索【knowEngineElasticsearchContentRetriever】知识库内容...");
+                        } else if (configuration instanceof ElasticsearchConfigurationFullText) {
+                            progressCallback.accept("[PROGRESS]:正在全文检索知识库内容...");
+                            log.info("[PROGRESS]:正在全文检索【knowEngineElasticsearchContentRetriever】知识库内容...");
+                        }
                     }
                 }
                 case null, default -> {

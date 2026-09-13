@@ -108,4 +108,17 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         this.update(update, new LambdaQueryWrapper<ChatMessageEntity>()
                 .eq(ChatMessageEntity::getMessageId, chatMessageId));
     }
+
+    /**
+     * 更新消息内容
+     * @param aiMessageId
+     * @param content
+     */
+    @Override
+    public void updateContent(String aiMessageId, String content) {
+        ChatMessageEntity update = new ChatMessageEntity();
+        update.setContent(content);
+        this.update(update, new LambdaQueryWrapper<ChatMessageEntity>()
+                .eq(ChatMessageEntity::getMessageId, aiMessageId));
+    }
 }

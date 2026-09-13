@@ -2,6 +2,7 @@ package com.phuang.model.dto;
 
 import com.phuang.model.enums.ChatSource;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -12,6 +13,7 @@ import lombok.NoArgsConstructor;
  * </p>
  * @author phuang
  */
+@Builder
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

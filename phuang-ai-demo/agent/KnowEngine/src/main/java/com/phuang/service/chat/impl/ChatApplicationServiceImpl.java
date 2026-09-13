@@ -7,10 +7,10 @@ import com.phuang.handler.rag.aggregator.BgeScoringModel;
 import com.phuang.handler.rag.aggregator.KnowEngineReRankingContentAggregator;
 import com.phuang.handler.rag.retriever.KnowEngineElasticsearchContentRetriever;
 import com.phuang.handler.rag.retriever.KnowEngineSqlDatabaseContentRetriever;
+import com.phuang.handler.rag.retriever.ProgressAwareContentRetriever;
 import com.phuang.handler.rag.router.KnowEngineQueryRouter;
 import com.phuang.handler.rag.transformer.KnowEngineQueryTransformer;
 import com.phuang.model.dto.ChatParam;
-import com.phuang.model.dto.IntentRecognitionResult;
 import com.phuang.model.enums.ChatSource;
 import com.phuang.model.enums.RoleEnum;
 import com.phuang.service.KnowledgeSegmentService;
@@ -44,6 +44,8 @@ import org.elasticsearch.client.RestClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import javax.sql.DataSource;
 import java.io.IOException;
@@ -184,16 +186,49 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
         String messageId = chatMessageService.saveUserMessage(conversationId, content);
         String aiMessageId = chatMessageService.saveAssistantMessage(conversationId);
 
-        IntentRecognitionResult recognitionResult = intentRecognitionService.chat(conversationId, content);
-        if (!recognitionResult.related()) {
-            //使用通用大模型进行对话
-            return commonChatService.streamChat(userId, content)
-                    .concatWith(Flux.just("[DONE]:" + finalConversationId));
-        } else {
-            //rag流程
+        //进入流式对话
+        return Flux.just("[PROGRESS]:正在识别您的意图...")
+                .concatWith(Mono.fromCallable(() -> {
+                            // 调用LLM意图识别
+                            return intentRecognitionService.chat(conversationId, content);
+                        })
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .flatMapMany(intentRecognitionResult -> {
 
-        }
-        return null;
+                            // 意图识别完成后清除缓存，避免意图识别的AI响应污染后续RAG对话的历史记忆
+                            databaseChatMemoryStore.evictCache(finalConversationId);
+
+                            if (!intentRecognitionResult.related()) {
+                                //使用通用大模型进行对话
+                                StringBuilder contentBuilder = new StringBuilder();
+                                return Flux.concat(Flux.just("[PROGRESS]:正在为您生成回答..."),
+                                        commonChatService.streamChat(userId, content)
+                                                .doOnNext(token -> contentBuilder.append(token))
+                                                .doOnComplete(() -> chatMessageService.updateContent(aiMessageId, contentBuilder.toString())));
+                            }
+                            // 进入RAG流程（进度由内部组件发出）
+                            return ragChat(ChatParam.builder()
+                                    .userId(userId)
+                                    .conversationId(finalConversationId)
+                                    .messageId(messageId)
+                                    .content(content)
+                                    .assistantMessageId(aiMessageId)
+                                    .intentRecognitionResult(intentRecognitionResult)
+                                    .chatSource(chatSource)
+                                    .build());
+                        }))
+                .doOnError(e -> log.error("流式对话异常,conversationId:{}", finalConversationId, e))
+                .concatWith(Mono.just("[DONE]:" + finalConversationId));
+    }
+
+    /**
+     * 进入RAG流式对话
+     * @param chatParam
+     * @return
+     */
+    public Flux<String> ragChat(ChatParam chatParam) {
+
+        return doChat(chatParam);
     }
 
     public Flux<String> doChat(ChatParam chatParam) {
@@ -211,35 +246,43 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
         KnowEngineQueryTransformer knowEngineQueryTransformer = new KnowEngineQueryTransformer(chatModel, chatParam.getMessageId(), processCallback);
 
         // 构造查询路由器
-        KnowEngineElasticsearchContentRetriever embeddingRetriever = KnowEngineElasticsearchContentRetriever.builder()
-                .configuration(ElasticsearchConfigurationKnn.builder().build())
-                .maxResults(5)
-                .minScore(0.5)
-                .embeddingModel(openAiEmbeddingModel)
-                .restClient(restClient)
-                .indexName(INDEX_NAME)
-                .knowledgeSegmentService(knowledgeSegmentService)
-                .filter(accessibleByFilter)
+        ProgressAwareContentRetriever embeddingRetriever = ProgressAwareContentRetriever.builder()
+                .delegate(KnowEngineElasticsearchContentRetriever.builder()
+                        .configuration(ElasticsearchConfigurationKnn.builder().build())
+                        .maxResults(5)
+                        .minScore(0.5)
+                        .embeddingModel(openAiEmbeddingModel)
+                        .restClient(restClient)
+                        .indexName(INDEX_NAME)
+                        .knowledgeSegmentService(knowledgeSegmentService)
+                        .filter(accessibleByFilter)
+                        .build())
+                .progressCallback(processCallback)
                 .build();
 
-        KnowEngineElasticsearchContentRetriever fullTextRetriever = KnowEngineElasticsearchContentRetriever.builder()
-                .configuration(ElasticsearchConfigurationFullText.builder().build())
-                .restClient(restClient)
-                .embeddingModel(openAiEmbeddingModel)
-                .knowledgeSegmentService(knowledgeSegmentService)
-                .indexName(INDEX_NAME)
-                .filter(accessibleByFilter)
-                .maxResults(5)
+        ProgressAwareContentRetriever fullTextRetriever = ProgressAwareContentRetriever.builder()
+                .delegate(KnowEngineElasticsearchContentRetriever.builder()
+                        .configuration(ElasticsearchConfigurationFullText.builder().build())
+                        .restClient(restClient)
+                        .embeddingModel(openAiEmbeddingModel)
+                        .knowledgeSegmentService(knowledgeSegmentService)
+                        .indexName(INDEX_NAME)
+                        .filter(accessibleByFilter)
+                        .maxResults(5)
+                        .build())
+                .progressCallback(processCallback)
                 .build();
 
-        KnowEngineSqlDatabaseContentRetriever sqlRetriever = null;
+        ProgressAwareContentRetriever sqlRetriever = null;
         try {
-            sqlRetriever = KnowEngineSqlDatabaseContentRetriever.builder()
-                    .dataSource(dataSource)
-                    .promptTemplate(new PromptTemplate(textToSqlPrompt.getContentAsString(StandardCharsets.UTF_8)))
-                    .databaseStructure(null)
-                    .chatModel(chatModel)
-                    .fallbackRetriever(embeddingRetriever)
+            sqlRetriever = ProgressAwareContentRetriever.builder().delegate(KnowEngineSqlDatabaseContentRetriever.builder()
+                            .dataSource(dataSource)
+                            .promptTemplate(new PromptTemplate(textToSqlPrompt.getContentAsString(StandardCharsets.UTF_8)))
+                            .databaseStructure(null)
+                            .chatModel(chatModel)
+                            .fallbackRetriever(embeddingRetriever)
+                            .build())
+                    .progressCallback(processCallback)
                     .build();
         } catch (IOException e) {
             log.error("Error creating SQL retriever", e);
