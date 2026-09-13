@@ -7,7 +7,7 @@ import com.phuang.handler.rag.retriever.KnowEngineSqlDatabaseContentRetriever;
 import com.phuang.handler.rag.retriever.Neo4jText2CypherRetriever;
 import com.phuang.handler.rag.retriever.ProgressAwareContentRetriever;
 import com.phuang.model.dto.QueryRouteResult;
-import com.phuang.util.JsonUtil;
+import com.phuang.util.JsonRepairUtil;
 import dev.langchain4j.experimental.rag.content.retriever.sql.SqlDatabaseContentRetriever;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.input.Prompt;
@@ -132,7 +132,7 @@ public class KnowEngineQueryRouter implements QueryRouter {
         String response = chatModel.chat(createPrompt(query).text());
 
         try {
-            QueryRouteResult queryRouteResult = JSON.parseObject(JsonUtil.fixJson(response), QueryRouteResult.class);
+            QueryRouteResult queryRouteResult = JSON.parseObject(JsonRepairUtil.fixJson(response), QueryRouteResult.class);
             String strategy = queryRouteResult.strategy();
             log.info("Route Success , query: {} , strategy: {}", query, strategy);
 

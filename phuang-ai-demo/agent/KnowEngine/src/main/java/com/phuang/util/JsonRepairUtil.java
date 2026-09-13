@@ -2,8 +2,7 @@ package com.phuang.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -12,9 +11,9 @@ import java.util.regex.Pattern;
  * JSON 修复工具类
  * 用于处理大模型返回的可能包含错误的 JSON 字符串
  */
-public class JsonUtil {
+@Slf4j
+public class JsonRepairUtil {
 
-    private static final Logger log = LoggerFactory.getLogger(JsonUtil.class);
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
