@@ -5,6 +5,7 @@ import com.phuang.handler.memory.DatabaseChatMemoryStore;
 import com.phuang.handler.rag.PromptHandler;
 import com.phuang.handler.rag.aggregator.BgeScoringModel;
 import com.phuang.handler.rag.aggregator.KnowEngineReRankingContentAggregator;
+import com.phuang.handler.rag.aggregator.ProgressAwareContentAggregator;
 import com.phuang.handler.rag.retriever.KnowEngineElasticsearchContentRetriever;
 import com.phuang.handler.rag.retriever.KnowEngineSqlDatabaseContentRetriever;
 import com.phuang.handler.rag.retriever.ProgressAwareContentRetriever;
@@ -292,11 +293,16 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
                 chatModel, processCallback);
 
         //构造融合重排序器
-        KnowEngineReRankingContentAggregator knowEngineReRankingContentAggregator = KnowEngineReRankingContentAggregator.builder()
-                .scoringModel(BgeScoringModel.getInstance())
-                .minScore(0.6)
-                .maxResults(5)
-                .querySelector(queryToContents -> queryToContents.keySet().iterator().next())
+        ProgressAwareContentAggregator knowEngineReRankingContentAggregator = ProgressAwareContentAggregator.builder()
+                .assistantMessageId(chatParam.getAssistantMessageId())
+                .progressCallback(processCallback)
+                .chatMessageService(chatMessageService)
+                .delegate(KnowEngineReRankingContentAggregator.builder()
+                        .scoringModel(BgeScoringModel.getInstance())
+                        .minScore(0.6)
+                        .maxResults(5)
+                        .querySelector(queryToContents -> queryToContents.keySet().iterator().next())
+                        .build())
                 .build();
 
         //构造上下文融合器

@@ -1,5 +1,6 @@
 package com.phuang.handler.rag.aggregator;
 
+import cn.hutool.core.collection.CollectionUtil;
 import com.alibaba.fastjson2.JSON;
 import com.phuang.model.entity.ChatMessageEntity;
 import com.phuang.model.enums.RetrievalSource;
@@ -10,12 +11,8 @@ import dev.langchain4j.rag.content.aggregator.ContentAggregator;
 import dev.langchain4j.rag.query.Query;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.util.CollectionUtils;
 
-import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -44,71 +41,74 @@ public class ProgressAwareContentAggregator implements ContentAggregator {
 
     private final Consumer<String> progressCallback;
 
-    private final String chatMessageId;
+    private final String assistantMessageId;
 
     private final ChatMessageService chatMessageService;
 
     @Builder
-    public ProgressAwareContentAggregator(ContentAggregator delegate, Consumer<String> progressCallback, String chatMessageId, ChatMessageService chatMessageService) {
+    public ProgressAwareContentAggregator(ContentAggregator delegate, Consumer<String> progressCallback, String assistantMessageId, ChatMessageService chatMessageService) {
         this.chatMessageService = chatMessageService;
         this.delegate = delegate;
-        this.chatMessageId = chatMessageId;
+        this.assistantMessageId = assistantMessageId;
         this.progressCallback = progressCallback;
     }
 
     @Override
     public List<Content> aggregate(Map<Query, Collection<List<Content>>> queryToContents) {
-        // 发送进度：开始重排序/聚合
-        if (progressCallback != null) {
+        // 重排序/聚合操作前发送进度
+        if (Objects.nonNull(progressCallback)) {
             progressCallback.accept("[PROGRESS]:正在排序筛选结果...");
             log.info("[PROGRESS]:正在排序筛选结果...");
         }
 
-        List<Content> results = delegate.aggregate(queryToContents);
+        //交由 delegate 执行重排序/聚合
+        List<Content> contentResults = delegate.aggregate(queryToContents);
 
         try {
-            // 文档维度的RAG引用信息，用于前端展示
-            List<ChatMessageEntity.RagReference> ragReferencesDocs = results.stream()
-                    .collect(Collectors.toMap(
+            /**
+             * 构造【文档】维度的RAG引用信息,用于前端展示
+             *  文档列表需要通过 DOC_ID 进行去重
+             */
+            List<ChatMessageEntity.RagReference> ragReferencesDocs = contentResults.stream().collect(Collectors.toMap(
                             content -> content.textSegment().metadata().getInteger(DOC_ID),
                             content -> content,
-                            (existing, replacement) -> existing
-                    )).values().stream()
+                            (existing, replacement) -> existing)).values().stream()
                     .map(content -> ReferenceUtil.getRagReference(content, RetrievalSource.HYBRID))
                     .collect(Collectors.toList());
 
-            // chunk维度的RAG引用信息，用于数据持久化
-            List<ChatMessageEntity.RagReference> ragReferenceChunks = results.stream()
-                    .collect(Collectors.toMap(
-                            content -> content.textSegment().metadata().getString(CHUNK_ID),
-                            content -> content,
-                            (existing, replacement) -> existing,
-                            LinkedHashMap::new
-                    )).values().stream()
-                    .map(content -> ReferenceUtil.getRagReference(content, RetrievalSource.HYBRID))
-                    .collect(Collectors.toList());
-
-            if (!CollectionUtils.isEmpty(ragReferenceChunks) && chatMessageService != null && chatMessageId != null) {
-                chatMessageService.updateRagReferences(chatMessageId, ragReferenceChunks);
-            }
-
-            // 过滤掉chunkId为空的引用，一般是非知识库检索得到的结果
+            // 过滤掉 chunkId 为空的引用，一般是非知识库检索得到的结果
             ragReferencesDocs = ragReferencesDocs.stream().filter(reference -> reference.getChunkId() != null).collect(Collectors.toList());
 
-            if (progressCallback != null && !CollectionUtils.isEmpty(ragReferencesDocs)) {
+            if (Objects.nonNull(progressCallback) && CollectionUtil.isNotEmpty(ragReferencesDocs)) {
                 progressCallback.accept("[REFERENCE]:" + JSON.toJSONString(ragReferencesDocs));
-                log.info("[REFERENCE]:" + JSON.toJSONString(ragReferencesDocs));
+                log.info("[REFERENCE]:{}", JSON.toJSONString(ragReferencesDocs));
+            }
+
+            /**
+             * 构造【CHUNK】维度的RAG引用信息,这份列表的定位是完整保存最终参与回答的 chunk 信息,用于数据库持久化
+             * 文档列表需要通过 CHUNK_ID 进行去重
+             * 持久化的目的是为了前端后续展示对话详情中的所引用的信息有哪些(注意:是持久化到模型返回的消息记录,而不是用户提问的消息记录)
+             */
+            List<ChatMessageEntity.RagReference> ragReferenceChunks = contentResults.stream().collect(Collectors.toMap(
+                            content -> content.textSegment().metadata().getString(CHUNK_ID),
+                            content -> content,
+                            (existing, replacement) -> existing, LinkedHashMap::new)).values().stream()
+                    .map(content -> ReferenceUtil.getRagReference(content, RetrievalSource.HYBRID))
+                    .collect(Collectors.toList());
+
+            if (CollectionUtil.isNotEmpty(ragReferenceChunks) && Objects.nonNull(chatMessageService) && Objects.nonNull(assistantMessageId)) {
+                //更新对话引用信息
+                chatMessageService.updateRagReferences(assistantMessageId, ragReferenceChunks);
             }
         } catch (Exception e) {
-            log.warn("RAG引用信息回写失败: assistantMsgId={}", chatMessageId, e);
+            log.warn("RAG引用信息回写失败: assistantMessageId:{}", assistantMessageId, e);
         }
 
-
-        // 发送进度：聚合完成，即将进入LLM生成
-        if (progressCallback != null) {
+        // 聚合完成后发送进度: 即将进入 LLM 生成
+        if (Objects.nonNull(progressCallback)) {
             progressCallback.accept("[PROGRESS]:正在生成回答...");
             log.info("[PROGRESS]:正在生成回答...");
         }
-        return results;
+        return contentResults;
     }
 }

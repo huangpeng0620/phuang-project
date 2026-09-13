@@ -10,7 +10,6 @@ import java.util.stream.Collectors;
 
 import static com.phuang.model.constant.MetadataKeyConstant.*;
 
-
 public class ReferenceUtil {
 
     public static List<ChatMessageEntity.RagReference> getRagReferences(List<Content> contents, RetrievalSource retrievalSource) {

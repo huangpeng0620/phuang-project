@@ -25,4 +25,6 @@ public interface ChatMessageService extends IService<ChatMessageEntity> {
     void updateTransformContent(String chatMessageId, String newQuery);
 
     void updateContent(String aiMessageId, String string);
+
+    void updateRagReferences(String messageId, List<ChatMessageEntity.RagReference> ragReferences);
 }
