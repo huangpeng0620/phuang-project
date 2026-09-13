@@ -1,12 +1,10 @@
 package com.phuang.handler.memory;
 
+import cn.hutool.core.collection.CollectionUtil;
 import com.phuang.model.entity.ChatMessageEntity;
 import com.phuang.model.enums.ChatMessageType;
 import com.phuang.service.chat.ChatMessageService;
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.data.message.ChatMessageDeserializer;
-import dev.langchain4j.data.message.ChatMessageSerializer;
-import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.data.message.*;
 import dev.langchain4j.store.memory.chat.ChatMemoryStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,7 +49,7 @@ public class DatabaseChatMemoryStore implements ChatMemoryStore {
     private static final long CACHE_TTL_HOURS = 1;
 
     @Override
-    public List<dev.langchain4j.data.message.ChatMessage> getMessages(Object memoryId) {
+    public List<ChatMessage> getMessages(Object memoryId) {
         String key = buildKey(memoryId);
         try {
             String json = stringRedisTemplate.opsForValue().get(key);
@@ -61,17 +59,17 @@ public class DatabaseChatMemoryStore implements ChatMemoryStore {
         } catch (Exception e) {
             log.error("Redis 读取聊天记忆失败, memoryId:{}, 将从数据库加载", memoryId, e);
         }
-        // Redis 未命中，从数据库加载
-        List<dev.langchain4j.data.message.ChatMessage> messages = loadFromDatabase(memoryId.toString());
+        // Redis 未命中 -> 从数据库加载
+        List<ChatMessage> messages = loadFromDatabase(memoryId.toString());
         // 写入 Redis
         saveToRedis(key, messages);
         return messages;
     }
 
     @Override
-    public void updateMessages(Object memoryId, List<dev.langchain4j.data.message.ChatMessage> messages) {
+    public void updateMessages(Object memoryId, List<ChatMessage> messages) {
         // 只保留最近 MAX_MESSAGES 条消息
-        List<dev.langchain4j.data.message.ChatMessage> trimmed = trimMessages(messages);
+        List<ChatMessage> trimmed = trimMessages(messages);
         saveToRedis(buildKey(memoryId), trimmed);
     }
 
@@ -80,7 +78,7 @@ public class DatabaseChatMemoryStore implements ChatMemoryStore {
         try {
             stringRedisTemplate.delete(buildKey(memoryId));
         } catch (Exception e) {
-            log.warn("Redis 删除聊天记忆失败, memoryId={}", memoryId, e);
+            log.error("Redis 删除聊天记忆失败, memoryId:{}", memoryId, e);
         }
         chatMessageService.deleteMessagesByConversationId(memoryId.toString());
     }
@@ -89,9 +87,9 @@ public class DatabaseChatMemoryStore implements ChatMemoryStore {
      * 从数据库加载历史消息
      * 注意：过滤掉意图识别结果消息（INTENT_RECOGNITION），避免污染对话上下文
      */
-    private List<dev.langchain4j.data.message.ChatMessage> loadFromDatabase(String conversationId) {
+    private List<ChatMessage> loadFromDatabase(String conversationId) {
         List<ChatMessageEntity> dbMessages = chatMessageService.getRecentMessages(conversationId, MAX_MESSAGES);
-        List<dev.langchain4j.data.message.ChatMessage> messages = new ArrayList<>();
+        List<ChatMessage> messages = new ArrayList<>();
         for (ChatMessageEntity dbMessage : dbMessages) {
             if (dbMessage.getContent() == null || dbMessage.getContent().isEmpty()) {
                 continue;
@@ -112,7 +110,7 @@ public class DatabaseChatMemoryStore implements ChatMemoryStore {
         try {
             stringRedisTemplate.delete(buildKey(memoryId));
         } catch (Exception e) {
-            log.warn("Redis 清除聊天记忆缓存失败, memoryId={}", memoryId, e);
+            log.error("Redis 清除聊天记忆缓存失败, memoryId={}", memoryId, e);
         }
     }
 
@@ -124,15 +122,15 @@ public class DatabaseChatMemoryStore implements ChatMemoryStore {
             String json = ChatMessageSerializer.messagesToJson(messages);
             stringRedisTemplate.opsForValue().set(key, json, CACHE_TTL_HOURS, TimeUnit.HOURS);
         } catch (Exception e) {
-            log.warn("Redis 保存聊天记忆失败, key={}", key, e);
+            log.error("Redis 保存聊天记忆失败, key:{}", key, e);
         }
     }
 
     /**
      * 截断消息列表，只保留最近 MAX_MESSAGES 条
      */
-    private List<dev.langchain4j.data.message.ChatMessage> trimMessages(List<dev.langchain4j.data.message.ChatMessage> messages) {
-        if (messages == null || messages.isEmpty()) {
+    private List<ChatMessage> trimMessages(List<ChatMessage> messages) {
+        if (CollectionUtil.isEmpty(messages)) {
             return Collections.emptyList();
         }
         if (messages.size() <= MAX_MESSAGES) {
