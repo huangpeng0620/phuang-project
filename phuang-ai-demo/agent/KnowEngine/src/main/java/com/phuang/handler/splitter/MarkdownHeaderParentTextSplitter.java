@@ -86,24 +86,13 @@ public class MarkdownHeaderParentTextSplitter implements DocumentSplitter {
     private int overlap;
 
     /**
-     * 构造函数
-     *
-     * @param headersToSplitOn 标题分割映射表，key为标题标记（如"#"、"##"），value为元数据中的键名
-     * @param returnEachLine   是否按行返回结果，false时会聚合相同元数据的行
-     * @param stripHeaders     是否在结果中移除标题行
-     */
-    public MarkdownHeaderParentTextSplitter(Map<String, String> headersToSplitOn, boolean returnEachLine, boolean stripHeaders) {
-        this(headersToSplitOn, returnEachLine, stripHeaders, 0, 0);
-    }
-
-    public MarkdownHeaderParentTextSplitter(int chunkSize, int overlap) {
-        this(DEFAULT_HEADERS_TO_SPLIT, true, false, chunkSize, overlap);
-    }
-
-    /**
      * 构造函数（通过标题级别指定分割层级）
      *
      * @param titleLevel     标题级别（1-6），表示按1到titleLevel级标题进行分割
+     *                       <P>
+     *                          例如若 titleLevel 传 2,不是只按二级标题切分，而是按一级和二级标题切分
+     *                           通常情况下默认传6即可
+     *                       </P>
      * @param returnEachLine 是否按行返回结果，false时会聚合相同元数据的行
      * @param stripHeaders   是否在结果中移除标题行
      * @param chunkSize      每个分片的最大字符数，超出则按chunkSize再次切割，0表示不限制
@@ -111,6 +100,10 @@ public class MarkdownHeaderParentTextSplitter implements DocumentSplitter {
      */
     public MarkdownHeaderParentTextSplitter(int titleLevel, boolean returnEachLine, boolean stripHeaders, int chunkSize, int overlap) {
         this(buildHeadersMap(titleLevel), returnEachLine, stripHeaders, chunkSize, overlap);
+    }
+
+    public MarkdownHeaderParentTextSplitter(int chunkSize, int overlap) {
+        this(DEFAULT_HEADERS_TO_SPLIT, true, false, chunkSize, overlap);
     }
 
     /**
