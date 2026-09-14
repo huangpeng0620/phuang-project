@@ -21,13 +21,31 @@ public class HlockException extends RuntimeException {
         this.errorCode = BusinessErrorEnum.SYSTEM_ERROR.getCode();
     }
 
+    public HlockException(String errorMsg, Throwable cause) {
+        super(errorMsg, cause);
+        this.errorCode = BusinessErrorEnum.SYSTEM_ERROR.getCode();
+    }
+
     public HlockException(ErrorEnum errorEnum) {
         super(errorEnum.getErrorMsg());
         this.errorCode = errorEnum.getErrorCode();
     }
 
+    public HlockException(ErrorEnum errorEnum, Throwable cause) {
+        super(errorEnum.getErrorMsg(), cause);
+        this.errorCode = errorEnum.getErrorCode();
+    }
+
     public HlockException(String errorCode, String errorMsg) {
         super(errorMsg);
+        if (Objects.isNull(errorCode)) {
+            errorCode = BusinessErrorEnum.SYSTEM_ERROR.getCode();
+        }
+        this.errorCode = errorCode;
+    }
+
+    public HlockException(String errorCode, String errorMsg, Throwable cause) {
+        super(errorMsg, cause);
         if (Objects.isNull(errorCode)) {
             errorCode = BusinessErrorEnum.SYSTEM_ERROR.getCode();
         }

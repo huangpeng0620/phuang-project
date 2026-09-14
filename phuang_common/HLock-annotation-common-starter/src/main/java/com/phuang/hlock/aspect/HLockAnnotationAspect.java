@@ -63,7 +63,15 @@ public class HLockAnnotationAspect {
             Thread.currentThread().interrupt();
             log.warn("获取分布式锁时线程被中断, method={}, lockName={}",
                     method.toGenericString(), lockInfo.getLockName());
-            throw interruptedException;
+            throw new HlockException("Interrupted while acquiring distributed lock: "
+                    + lockInfo.getLockName(), interruptedException);
+        } catch (HlockException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error("获取分布式锁异常, method={}, lockName={}",
+                    method.toGenericString(), lockInfo.getLockName(), ex);
+            throw new HlockException("Failed to acquire distributed lock: "
+                    + lockInfo.getLockName(), ex);
         }
         if (!tryLock) {
             log.warn("获取分布式锁失败, method={}, lockName={}, lockType={}",
@@ -73,24 +81,43 @@ public class HLockAnnotationAspect {
         }
         log.debug("获取分布式锁成功, method={}, lockName={}",
                 method.toGenericString(), lockInfo.getLockName());
+        Throwable businessFailure = null;
         try {
             //加锁成功-->放行
             return joinPoint.proceed();
+        } catch (Throwable ex) {
+            businessFailure = ex;
+            throw ex;
         } finally {
+            releaseLock(lock, method, lockInfo, businessFailure);
+        }
+    }
+
+    private void releaseLock(RLock lock, Method method, LockInfo lockInfo, Throwable businessFailure) {
+        try {
             if (lock.isHeldByCurrentThread()) {
-                //判断是否是当前线程持有锁 -> 是则释放锁
-                try {
-                    lock.unlock();
-                    log.debug("释放分布式锁成功, method={}, lockName={}",
-                            method.toGenericString(), lockInfo.getLockName());
-                } catch (Exception unlockException) {
-                    log.error("释放分布式锁失败, method={}, lockName={}",
-                            method.toGenericString(), lockInfo.getLockName(), unlockException);
-                }
+                // 判断是否是当前线程持有锁，是则释放锁。
+                lock.unlock();
+                log.debug("释放分布式锁成功, method={}, lockName={}",
+                        method.toGenericString(), lockInfo.getLockName());
             } else {
                 log.warn("当前线程未持有分布式锁，跳过释放, method={}, lockName={}",
                         method.toGenericString(), lockInfo.getLockName());
             }
+        } catch (RuntimeException ex) {
+            log.error("释放分布式锁失败, method={}, lockName={}",
+                    method.toGenericString(), lockInfo.getLockName(), ex);
+            HlockException hlockException = ex instanceof HlockException existing
+                    ? existing
+                    : new HlockException("Failed to release distributed lock: "
+                    + lockInfo.getLockName(), ex);
+            if (businessFailure != null) {
+                if (businessFailure != hlockException) {
+                    businessFailure.addSuppressed(hlockException);
+                }
+                return;
+            }
+            throw hlockException;
         }
     }
 

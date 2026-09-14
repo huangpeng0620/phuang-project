@@ -1,5 +1,6 @@
 package com.phuang.common.utils;
 
+import com.phuang.hlock.model.HlockException;
 import org.springframework.context.expression.MethodBasedEvaluationContext;
 import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.core.ParameterNameDiscoverer;
@@ -43,8 +44,11 @@ public class SpElUtils {
      * @return
      */
     public static String parseSpEl(Method method, Object[] args, String spEl) {
+        if (method == null) {
+            throw new HlockException("HLock method must not be null");
+        }
         if (!StringUtils.hasText(spEl)) {
-            throw new IllegalArgumentException("HLock key expression must not be blank");
+            throw new HlockException("HLock key expression must not be blank");
         }
         Object[] arguments = args == null ? new Object[0] : args;
         try {
@@ -53,14 +57,19 @@ public class SpElUtils {
             Expression expression = EXPRESSION_CACHE.computeIfAbsent(spEl, PARSER::parseExpression);
             String value = expression.getValue(context, String.class);
             if (value == null) {
-                throw new IllegalArgumentException("HLock key expression evaluated to null: " + spEl
+                throw new HlockException("HLock key expression evaluated to null: " + spEl
                         + ", method: " + method.toGenericString());
             }
             return value;
+        } catch (HlockException ex) {
+            throw ex;
         } catch (ExpressionException ex) {
-            throw new IllegalArgumentException("Failed to evaluate HLock key expression '" + spEl
+            throw new HlockException("Failed to evaluate HLock key expression '" + spEl
                     + "' for method " + method.toGenericString()
                     + ". Prefer #p0/#a0 aliases when parameter names are unavailable.", ex);
+        } catch (RuntimeException ex) {
+            throw new HlockException("Failed to evaluate HLock key expression '" + spEl
+                    + "' for method " + method.toGenericString(), ex);
         }
     }
 

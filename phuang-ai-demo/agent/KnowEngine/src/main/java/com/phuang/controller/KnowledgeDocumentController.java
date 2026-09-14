@@ -2,6 +2,7 @@ package com.phuang.controller;
 
 import com.phuang.model.dto.DocumentSplitParam;
 import com.phuang.model.dto.DocumentUploadParam;
+import com.phuang.service.AuthService;
 import com.phuang.service.KnowledgeDocumentService;
 import com.phuang.service.document.DocumentProcessService;
 import jakarta.annotation.Resource;
@@ -24,9 +25,11 @@ public class KnowledgeDocumentController {
     @Resource
     private KnowledgeDocumentService knowledgeDocumentService;
 
+    @Resource
+    private AuthService authService;
+
     /**
      * 文件上传接口
-     * @param uploadUser 上传人(后期替换成token获取 todo)
      * @param file 上传的文件
      * @param title 文件标题
      * @param version 文档版本
@@ -38,14 +41,14 @@ public class KnowledgeDocumentController {
      * @throws Exception
      */
     @PostMapping("/upload")
-    public Boolean uploadFile(@RequestParam("uploadUser") String uploadUser,
-                              @RequestParam("file") MultipartFile file,
+    public Boolean uploadFile(@RequestParam("file") MultipartFile file,
                               @RequestParam("title") String title,
                               @RequestParam(value = "version", required = false, defaultValue = "1.0.0") String version,
                               @RequestParam(value = "tableName", required = false) String tableName,
                               @RequestParam("description") String description,
                               @RequestParam(value = "knowledgeBaseType", required = false, defaultValue = "DOCUMENT_SEARCH") String knowledgeBaseType,
                               @RequestParam(value = "accessibleBy", required = false) String accessibleBy) throws Exception {
+        String uploadUser = authService.getCurrentUser().getName();
         return documentProcessService.upload(new DocumentUploadParam(file, title, accessibleBy, description, knowledgeBaseType, tableName, version), uploadUser);
     }
 
@@ -75,8 +78,8 @@ public class KnowledgeDocumentController {
      * @param documentId 文档ID
      * @return 切分后的片段数量
      */
-    @PostMapping("/split/{documentId}")
-    public Integer splitDocument(@PathVariable("documentId") Long documentId,
+    @PostMapping("/split")
+    public Integer splitDocument(@RequestParam("documentId") Long documentId,
                                  @RequestParam("splitType") String splitType,
                                  @RequestParam("chunkSize") Integer chunkSize,
                                  @RequestParam(value = "overlap", required = false) Integer overlap,

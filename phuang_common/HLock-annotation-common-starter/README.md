@@ -85,7 +85,7 @@ LockFactory 根据 lockType 获取 Redisson RLock
         v
 tryLock(waitTime, leaseTime, unit)
         |
-        |-- 获取失败：抛出 BusinessException，错误码 1001
+        |-- 获取失败：抛出 HlockException，错误码 1001
         |
         `-- 获取成功：执行业务方法
                          |
@@ -93,7 +93,7 @@ tryLock(waitTime, leaseTime, unit)
              当前线程仍持有锁时执行 unlock()
 ```
 
-切面通过 `@Order(0)` 放在事务切面外层，目标是先获取分布式锁，再进入事务，事务结束后再释放锁。
+切面通过 `@Order(Integer.MIN_VALUE)` 放在事务切面外层，目标是先获取分布式锁，再进入事务，事务结束后再释放锁。
 
 ## 5. Redis 配置
 
@@ -374,15 +374,22 @@ HLOCK_{businessPrefix}_{businessKey}
 
 ## 9. 异常行为
 
+starter 自身产生的配置校验、SpEL 解析、Redisson 初始化、加锁、中断和解锁异常，
+统一使用 `HlockException` 抛出。底层异常保留在 `cause` 中。
+
 获取锁失败时抛出：
 
 ```text
-BusinessException
+HlockException
 errorCode: 1001
 message: 请稍后重试
 ```
 
-业务方法本身抛出的异常会原样向上传播。切面不会将业务异常统一转换为系统异常。
+其他 starter 异常默认使用系统错误码 `-1`，异常消息中会保留具体失败环节。
+
+业务方法本身抛出的异常会原样向上传播，不会被转换成 `HlockException`。若业务异常和
+解锁异常同时发生，业务异常优先向上传播，解锁产生的 `HlockException` 会添加到
+业务异常的 `suppressed` 列表中。
 
 建议业务项目通过统一异常处理器读取：
 
@@ -400,7 +407,7 @@ exception.getMessage()
 | `INFO` | RedissonClient 开始初始化、初始化完成 |
 | `DEBUG` | 开始获取锁、获取成功、释放成功 |
 | `WARN` | 获取失败、线程中断、当前线程不再持有锁 |
-| `ERROR` | 释放锁异常 |
+| `ERROR` | Redisson 加锁或释放锁异常 |
 
 调试锁问题时可以临时开启：
 
@@ -421,7 +428,7 @@ logging:
 5. 固定租约必须覆盖业务最长执行时间，否则锁提前到期后切面会跳过释放并记录 WARN。
 6. Cluster 模式只使用 database 0。
 7. Master-Slave 是固定拓扑，不提供 Sentinel 故障转移能力。
-8. Redis 不可用时，加锁操作可能抛出 Redisson 连接或超时异常。
+8. Redis 不可用时，Redisson 连接或超时异常会包装为 `HlockException`，原异常可通过 `getCause()` 获取。
 9. 当前版本面向 Spring Boot 3.5.x 和 Java 17+，不再提供 Spring Boot 2.x 的 `spring.factories` 注册方式。
 
 ## 12. 项目结构
@@ -429,7 +436,7 @@ logging:
 ```text
 src/main/java/com/phuang
 ├── common/utils
-│   ├── AssertUtils.java
+│   ├── LocalVariableTableParameterNameDiscoverer.java
 │   └── SpElUtils.java
 └── hlock
     ├── annotation/HLock.java
@@ -439,7 +446,7 @@ src/main/java/com/phuang
     │   └── HLockRedissonConfig.java
     ├── handler/LockInfoHandler.java
     └── model
-        ├── BusinessException.java
+        ├── HlockException.java
         ├── LockFactory.java
         ├── LockInfo.java
         ├── ServerTypeEnum.java

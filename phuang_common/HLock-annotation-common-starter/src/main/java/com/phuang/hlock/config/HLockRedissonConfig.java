@@ -2,6 +2,7 @@ package com.phuang.hlock.config;
 
 import com.phuang.hlock.aspect.HLockAnnotationAspect;
 import com.phuang.hlock.handler.LockInfoHandler;
+import com.phuang.hlock.model.HlockException;
 import com.phuang.hlock.model.LockFactory;
 import com.phuang.hlock.model.ServerTypeEnum;
 import lombok.extern.slf4j.Slf4j;
@@ -53,32 +54,39 @@ public class HLockRedissonConfig {
     @Bean(destroyMethod = "shutdown")
     @ConditionalOnMissingBean(RedissonClient.class)
     public RedissonClient redissonClient() {
-        validateCommonProperties();
+        try {
+            validateCommonProperties();
 
-        Config config = new Config();
-        // leaseTime=-1 时，Redisson 根据该值判断锁续期和失效时间。
-        config.setLockWatchdogTimeout(properties.getLockWatchdogTimeout());
+            Config config = new Config();
+            // leaseTime=-1 时，Redisson 根据该值判断锁续期和失效时间。
+            config.setLockWatchdogTimeout(properties.getLockWatchdogTimeout());
 
-        ServerTypeEnum serverType = properties.getServerType();
-        log.info("开始初始化 HLock RedissonClient, serverType={}", serverType);
-        switch (serverType) {
-            case SINGLE_SERVER:
-                configureSingleServer(config);
-                break;
-            case CLUSTER_SERVERS:
-                configureClusterServers(config);
-                break;
-            case MASTER_SLAVE_SERVERS:
-                configureMasterSlaveServers(config);
-                break;
-            default:
-                // 防御性分支，防止后续新增枚举后忘记同步实现构建逻辑。
-                throw new IllegalStateException("Unsupported Redis server type: " + serverType);
+            ServerTypeEnum serverType = properties.getServerType();
+            log.info("开始初始化 HLock RedissonClient, serverType={}", serverType);
+            switch (serverType) {
+                case SINGLE_SERVER:
+                    configureSingleServer(config);
+                    break;
+                case CLUSTER_SERVERS:
+                    configureClusterServers(config);
+                    break;
+                case MASTER_SLAVE_SERVERS:
+                    configureMasterSlaveServers(config);
+                    break;
+                default:
+                    // 防御性分支，防止后续新增枚举后忘记同步实现构建逻辑。
+                    throw new HlockException("Unsupported Redis server type: " + serverType);
+            }
+
+            RedissonClient redissonClient = Redisson.create(config);
+            log.info("HLock RedissonClient 初始化完成, serverType={}", serverType);
+            return redissonClient;
+        } catch (HlockException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            throw new HlockException("Failed to initialize HLock RedissonClient, serverType="
+                    + (properties == null ? null : properties.getServerType()), ex);
         }
-
-        RedissonClient redissonClient = Redisson.create(config);
-        log.info("HLock RedissonClient 初始化完成, serverType={}", serverType);
-        return redissonClient;
     }
 
     /**
@@ -329,7 +337,7 @@ public class HLockRedissonConfig {
      */
     private void require(boolean condition, String message) {
         if (!condition) {
-            throw new IllegalStateException(message);
+            throw new HlockException(message);
         }
     }
 }

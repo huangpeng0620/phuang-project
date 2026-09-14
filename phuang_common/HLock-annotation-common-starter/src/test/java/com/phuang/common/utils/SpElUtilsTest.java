@@ -1,5 +1,6 @@
 package com.phuang.common.utils;
 
+import com.phuang.hlock.model.HlockException;
 import org.junit.jupiter.api.Test;
 import org.springframework.asm.ClassWriter;
 import org.springframework.asm.Label;
@@ -46,8 +47,19 @@ class SpElUtilsTest {
 
         assertThatThrownBy(() -> SpElUtils.parseSpEl(
                 method, new Object[]{new DocumentSplitParam(42L), "tenant-a"}, "#missing.documentId"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Prefer #p0/#a0 aliases");
+                .isInstanceOf(HlockException.class)
+                .hasMessageContaining("Prefer #p0/#a0 aliases")
+                .hasFieldOrPropertyWithValue("errorCode", "-1");
+    }
+
+    @Test
+    void rejectsBlankExpressionWithHlockException() throws Exception {
+        Method method = SampleService.class.getDeclaredMethod(
+                "split", DocumentSplitParam.class, String.class);
+
+        assertThatThrownBy(() -> SpElUtils.parseSpEl(method, new Object[0], " "))
+                .isInstanceOf(HlockException.class)
+                .hasMessage("HLock key expression must not be blank");
     }
 
     private static byte[] generateServiceWithoutMethodParameters() {
