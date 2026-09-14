@@ -1,15 +1,18 @@
 package com.phuang.common.utils;
 
+import org.springframework.context.expression.MethodBasedEvaluationContext;
 import org.springframework.core.DefaultParameterNameDiscoverer;
+import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.Expression;
+import org.springframework.expression.ExpressionException;
 import org.springframework.expression.ExpressionParser;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
-import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.util.StringUtils;
 
 import java.lang.reflect.Method;
-import java.util.Optional;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * spring el表达式解析
@@ -19,12 +22,17 @@ public class SpElUtils {
     /**
      * 解析表达式
      */
-    private static final ExpressionParser parser = new SpelExpressionParser();
+    private static final ExpressionParser PARSER = new SpelExpressionParser();
+
+    /**
+     * 注解中的表达式数量有限，缓存解析结果以避免每次加锁时重复解析。
+     */
+    private static final Map<String, Expression> EXPRESSION_CACHE = new ConcurrentHashMap<>();
 
     /**
      * 获取方法参数名称
      */
-    private static final DefaultParameterNameDiscoverer parameterNameDiscoverer = new DefaultParameterNameDiscoverer();
+    private static final ParameterNameDiscoverer PARAMETER_NAME_DISCOVERER = createParameterNameDiscoverer();
 
     /**
      * 解析PEL表达式
@@ -38,15 +46,28 @@ public class SpElUtils {
         if (!StringUtils.hasText(spEl)) {
             throw new IllegalArgumentException("HLock key expression must not be blank");
         }
-        //获取方法参数数组
-        String[] params = Optional.ofNullable(parameterNameDiscoverer.getParameterNames(method)).orElse(new String[]{});
-        //解析和计算SpEL表达式的上下文对象
-        EvaluationContext context = new StandardEvaluationContext();
-        for (int i = 0; i < params.length; i++) {
-            context.setVariable(params[i], args[i]);
+        Object[] arguments = args == null ? new Object[0] : args;
+        try {
+            EvaluationContext context = new MethodBasedEvaluationContext(
+                    null, method, arguments, PARAMETER_NAME_DISCOVERER);
+            Expression expression = EXPRESSION_CACHE.computeIfAbsent(spEl, PARSER::parseExpression);
+            String value = expression.getValue(context, String.class);
+            if (value == null) {
+                throw new IllegalArgumentException("HLock key expression evaluated to null: " + spEl
+                        + ", method: " + method.toGenericString());
+            }
+            return value;
+        } catch (ExpressionException ex) {
+            throw new IllegalArgumentException("Failed to evaluate HLock key expression '" + spEl
+                    + "' for method " + method.toGenericString()
+                    + ". Prefer #p0/#a0 aliases when parameter names are unavailable.", ex);
         }
-        Expression expression = parser.parseExpression(spEl);
-        return expression.getValue(context, String.class);
+    }
+
+    private static ParameterNameDiscoverer createParameterNameDiscoverer() {
+        DefaultParameterNameDiscoverer discoverer = new DefaultParameterNameDiscoverer();
+        discoverer.addDiscoverer(new LocalVariableTableParameterNameDiscoverer());
+        return discoverer;
     }
 
     /**

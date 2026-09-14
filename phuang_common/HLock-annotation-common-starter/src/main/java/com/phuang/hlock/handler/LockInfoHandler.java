@@ -6,6 +6,7 @@ import com.phuang.hlock.config.HLockConfigProperties;
 import com.phuang.hlock.model.LockInfo;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.aop.support.AopUtils;
 import org.springframework.util.StringUtils;
 
 import java.lang.reflect.Method;
@@ -23,7 +24,11 @@ public class LockInfoHandler {
     private static final String LOCK_NAME_SEPARATOR = "_";
 
     public LockInfo getLockInfo(JoinPoint joinPoint, HLock hlock) {
-        Method method = ((MethodSignature) joinPoint.getSignature()).getMethod();
+        Method signatureMethod = ((MethodSignature) joinPoint.getSignature()).getMethod();
+        Object target = joinPoint.getTarget();
+        Method method = target == null
+                ? signatureMethod
+                : AopUtils.getMostSpecificMethod(signatureMethod, target.getClass());
         String businessPrefix = StringUtils.hasText(hlock.prefixKey()) ? hlock.prefixKey() : SpElUtils.getMethodKey(method);
         String businessKey = SpElUtils.parseSpEl(method, joinPoint.getArgs(), hlock.key());
         /**

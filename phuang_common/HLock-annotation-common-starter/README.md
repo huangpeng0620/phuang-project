@@ -250,12 +250,16 @@ public class OrderService {
 ### 6.2 按对象属性加锁
 
 ```java
-@HLock(key = "#request.orderId")
+@HLock(key = "#p0.orderId")
 public void create(CreateOrderRequest request) {
 }
 ```
 
-当前 SpEL 实现通过方法参数名注册变量。业务项目应开启 Java 参数名保留：
+`#p0` 和 `#a0` 都表示第一个方法参数，后续参数依次为 `#p1`、`#a1`。位置参数
+不依赖业务项目保留编译参数名，因此推荐在公共组件中使用。
+
+如果希望继续使用 `#request.orderId` 这种参数名写法，starter 会先读取标准
+`MethodParameters`，缺失时再尝试读取 class 本地变量表。建议业务项目显式开启 Java 参数名保留：
 
 ```xml
 <plugin>
@@ -266,6 +270,9 @@ public void create(CreateOrderRequest request) {
     </configuration>
 </plugin>
 ```
+
+常规带调试信息的旧 class 即使未开启 `-parameters`，参数名写法也能兼容；若构建时
+使用了 `-g:none`，则只能使用 `#p0`/`#a0`。
 
 ### 6.3 让不同方法竞争同一资源
 
@@ -410,7 +417,7 @@ logging:
 1. `@HLock` 必须添加在 Spring 管理的 Bean 方法上。
 2. 同一个类中通过 `this.method()` 调用不会经过 Spring AOP 代理，锁不会生效。
 3. `private`、`final` 方法以及手动创建的对象不能保证切面生效。
-4. 当前 SpEL 使用参数名，业务项目需要开启 `-parameters`。
+4. SpEL 推荐使用 `#p0`/`#a0` 位置参数；参数名写法会依次尝试 `-parameters` 和 class 本地变量表，若业务代码同时关闭参数名与调试信息则无法使用参数名。
 5. 固定租约必须覆盖业务最长执行时间，否则锁提前到期后切面会跳过释放并记录 WARN。
 6. Cluster 模式只使用 database 0。
 7. Master-Slave 是固定拓扑，不提供 Sentinel 故障转移能力。
@@ -473,7 +480,5 @@ mvn clean test
 ## 14. 当前限制与后续方向
 
 - 增加 Sentinel 和 Replicated 模式；
-- 支持不依赖参数名的 `#p0`、`#a0` SpEL 写法；
-- 增加配置元数据，让 IDE 自动提示 `redis.hlock.*`；
-- 增加单元测试、自动配置测试和 Redis 集成测试；
+- 完善自动配置测试和 Redis 集成测试；
 - 增加可配置的获取锁失败处理器和监控指标。

@@ -22,7 +22,8 @@ public @interface HLock {
     String prefixKey() default "";
 
     /**
-     * springEl 表达式
+     * Spring EL 表达式。推荐使用不依赖编译参数名的 {@code #p0} 或 {@code #a0}，
+     * 例如 {@code #p0.documentId}；保留 {@code MethodParameters} 或本地变量表时也可使用参数名。
      */
     String key();
 
