@@ -169,3 +169,62 @@ CREATE TABLE IF NOT EXISTS `user_info` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_phone` (`phone`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci comment='客户信息表';
+
+-- 车型信息表
+create TABLE IF NOT EXISTS `car_info` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT comment '主键ID',
+    `info_id` VARCHAR(64) NOT NULL comment '车型唯一标识',
+    `brand` VARCHAR(64) DEFAULT NULL comment '品牌（如：Tesla、比亚迪、宝马等）',
+    `model_name` VARCHAR(128) DEFAULT NULL comment '型号名称（如：Model 3、汉、3系等）',
+    `model_year` INT DEFAULT NULL comment '年款（如：2025、2024等）',
+    `version` VARCHAR(128) DEFAULT NULL comment '版本描述（如：焕新版、长续航版、运动版等）',
+    `full_name` VARCHAR(256) DEFAULT NULL comment '全称（如：Tesla Model 3 2025焕新版）',
+    `vehicle_type` VARCHAR(32) DEFAULT NULL comment '车辆类型：轿车/SUV/MPV/跑车/皮卡等',
+    `fuel_type` VARCHAR(32) DEFAULT NULL comment '燃油类型：汽油/柴油/电动/混动/氢能源等',
+    `seat_count` INT DEFAULT NULL comment '座位数',
+    `displacement` DECIMAL(4,1) DEFAULT NULL comment '排量（L），燃油车使用',
+    `motor_power` DECIMAL(8,2) DEFAULT NULL comment '电机功率（kW），电动车使用',
+    `range_km` INT DEFAULT NULL comment '续航里程（km），电动车使用',
+    `guide_price` DECIMAL(12,2) DEFAULT NULL comment '官方指导价（万元）',
+    `color_options` VARCHAR(512) DEFAULT NULL comment '车身颜色选项（多个颜色用逗号分隔）',
+    `dimensions` VARCHAR(64) DEFAULT NULL comment '车身尺寸（长x宽x高，单位mm）',
+    `wheelbase` INT DEFAULT NULL comment '轴距（mm）',
+    `manufacturer` VARCHAR(128) DEFAULT NULL comment '生产厂商',
+    `status` VARCHAR(32) DEFAULT '在售' comment '车型状态：在售/停售/即将上市',
+    `image_url` VARCHAR(512) DEFAULT NULL comment '车型图片URL',
+    `description` TEXT DEFAULT NULL comment '车型描述',
+    `remark` TEXT DEFAULT NULL comment '备注',
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP comment '创建时间',
+    `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON update CURRENT_TIMESTAMP comment '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_info_id` (`info_id`),
+    KEY `idx_brand` (`brand`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci comment='车型信息表';
+
+-- 我的车辆信息表
+create TABLE IF NOT EXISTS `my_car` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT comment '主键ID',
+    `car_id` VARCHAR(64) NOT NULL comment '车辆唯一标识',
+    `user_id` VARCHAR(64) DEFAULT NULL comment '用户ID，标识车辆归属',
+    `car_info_id` VARCHAR(64) DEFAULT NULL comment '关联的车型信息ID',
+    `nickname` VARCHAR(128) DEFAULT NULL comment '车辆昵称（车主自定义名称）',
+    `full_name` VARCHAR(256) DEFAULT NULL comment '车辆全称（如：Tesla Model 3 2025焕新版）',
+    `image_url` VARCHAR(512) DEFAULT NULL comment '车辆图片URL',
+    `order_id` VARCHAR(64) DEFAULT NULL comment '关联的购车订单ID',
+    `plate_number` VARCHAR(32) NOT NULL comment '车牌号',
+    `color` VARCHAR(32) DEFAULT NULL comment '车辆颜色（具体颜色，如：珍珠白、深海蓝等）',
+    `vin` VARCHAR(32) DEFAULT NULL comment '车辆识别代号(VIN码)',
+    `engine_number` VARCHAR(64) DEFAULT NULL comment '发动机号',
+    `purchase_date` DATE DEFAULT NULL comment '购买日期',
+    `purchase_price` DECIMAL(15,2) DEFAULT NULL comment '购买价格',
+    `mileage` INT DEFAULT 0 comment '行驶里程(公里)',
+    `register_date` DATE DEFAULT NULL comment '注册日期',
+    `insurance_expire_date` DATE DEFAULT NULL comment '保险到期日',
+    `inspection_expire_date` DATE DEFAULT NULL comment '年检到期日',
+    `remark` TEXT DEFAULT NULL comment '备注',
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP comment '创建时间',
+    `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON update CURRENT_TIMESTAMP comment '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_car_id` (`car_id`),
+    KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci comment='我的车辆信息表';

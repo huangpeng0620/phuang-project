@@ -17,7 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
  */
 @RestController
 @RequestMapping("/api/document")
-public class KnowledgeDocumentController {
+public class KnowledgeDocumentCoreController {
 
     @Resource
     private DocumentProcessService documentProcessService;

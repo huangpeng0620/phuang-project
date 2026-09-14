@@ -1,6 +1,9 @@
 package com.phuang.service.chat.impl;
 
 import cn.hutool.core.util.StrUtil;
+import com.alibaba.fastjson2.JSON;
+import com.phuang.handler.converter.CarInfoConverter;
+import com.phuang.handler.converter.MyCarConverter;
 import com.phuang.handler.memory.DatabaseChatMemoryStore;
 import com.phuang.handler.rag.PromptHandler;
 import com.phuang.handler.rag.aggregator.BgeScoringModel;
@@ -13,9 +16,14 @@ import com.phuang.handler.rag.retriever.ProgressAwareContentRetriever;
 import com.phuang.handler.rag.router.KnowEngineQueryRouter;
 import com.phuang.handler.rag.transformer.KnowEngineQueryTransformer;
 import com.phuang.model.dto.ChatParam;
+import com.phuang.model.entity.CarInfoEntity;
+import com.phuang.model.entity.MyCarEntity;
 import com.phuang.model.enums.ChatSource;
+import com.phuang.model.enums.KnowEngineIntent;
 import com.phuang.model.enums.RoleEnum;
+import com.phuang.service.CarInfoService;
 import com.phuang.service.KnowledgeSegmentService;
+import com.phuang.service.MyCarService;
 import com.phuang.service.ai.CommonChatService;
 import com.phuang.service.ai.IntentRecognitionService;
 import com.phuang.service.ai.KnowEngineChatAiService;
@@ -45,6 +53,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.elasticsearch.client.RestClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -54,6 +63,7 @@ import javax.sql.DataSource;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -101,6 +111,12 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
 
     @Resource
     private DataSource dataSource;
+
+    @Resource
+    private MyCarService myCarService;
+
+    @Resource
+    private CarInfoService carInfoService;
 
     private IntentRecognitionService intentRecognitionService;
 
@@ -227,10 +243,42 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
 
     /**
      * 进入RAG流式对话
+     * <p>
+     *      1. 根据意图识别结果，判断是否需要车辆信息
+     *      2. 如果车辆信息不完善，则返回车辆信息不完善提示
+     *      3. 根据意图识别结果，判断是否需要车辆信息
+     * </p>
      * @param chatParam
      * @return
      */
     public Flux<String> ragChat(ChatParam chatParam) {
+        KnowEngineIntent intent = KnowEngineIntent.getIntent(chatParam.getIntentRecognitionResult());
+        /**
+         * 只有用户通过网页端访问时，才需要车辆信息
+         */
+        if(chatParam.getChatSource() == ChatSource.USER_WEB){
+            // 如果是维保服务、技术支持，则需要车辆信息
+            if (intent == KnowEngineIntent.CAR_MAINTENANCE || intent == KnowEngineIntent.CAR_TECH_SUPPORT) {
+                if (chatParam.getIntentRecognitionResult().entities().car_id() == null) {
+                    List<MyCarEntity> myCars = myCarService.getCarByUserId(chatParam.getUserId());
+                    if (CollectionUtils.isEmpty(myCars)) {
+                        return Flux.just("[WARN]:您还没有添加车辆信息，请先添加车辆信息");
+                    } else if (myCars.size() >= 1) {
+                        return Flux.just("[CARD]:请先选择车辆")
+                                .concatWith(Flux.just("[CARD_CHOICE_MYCAR]:" + JSON.toJSONString(MyCarConverter.INSTANCE.toVOList(myCars))));
+                    }
+                }
+            }
+
+            // 如果是营销政策，则需要车辆信息
+            if (intent == KnowEngineIntent.CAR_MARKETING) {
+                if (chatParam.getIntentRecognitionResult().entities().car_model() == null) {
+                    List<CarInfoEntity> carInfoList = carInfoService.getCarInfoByBrand(null);
+                    return Flux.just("[CARD]:请先选择您要咨询的车辆")
+                            .concatWith(Flux.just("[CARD_CHOICE_CAR]:" + JSON.toJSONString(CarInfoConverter.INSTANCE.toVOList(carInfoList))));
+                }
+            }
+        }
 
         return doChat(chatParam);
     }
