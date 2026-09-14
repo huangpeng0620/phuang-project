@@ -46,8 +46,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // 根据手机号查询客户
-        UserInfoEntity userInfo = userInfoService.getOne(
-                new LambdaQueryWrapper<UserInfoEntity>().eq(UserInfoEntity::getPhone, loginDTO.getPhone()));
+        UserInfoEntity userInfo = userInfoService.getOne(new LambdaQueryWrapper<UserInfoEntity>().eq(UserInfoEntity::getPhone, loginDTO.getPhone()));
         if (userInfo == null) {
             throw new RuntimeException("手机号不存在");
         }
@@ -62,11 +61,13 @@ public class AuthServiceImpl implements AuthService {
             throw new RuntimeException("该账号已被冻结，请联系客服");
         }
 
-        // 使用客户主键 id 作为 sa-token 的登录主键
+        /**
+         * StpUtil.login() 会创建或复用一个 Token,且 Sa-Token 建立 Token → 用户ID 的登录关系
+         * Token 会通过名为 satoken 的 Cookie 下发给浏览器,后续请求携带这个 Cookie，服务端就能识别当前用户
+         */
         StpUtil.login(userInfo.getId());
 
         log.info("客户登录成功: phone={}, name={}, loginId={}", userInfo.getPhone(), userInfo.getName(), userInfo.getId());
-
         return toLoginUserVO(userInfo);
     }
 
