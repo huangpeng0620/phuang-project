@@ -98,8 +98,7 @@ public class AuthServiceImpl implements AuthService {
         // 员工登录：使用 staff_ 前缀 + 工号(empId) 作为登录主键，设备标识为 "staff"
         StpUtil.login(STAFF_LOGIN_PREFIX + staffInfo.getEmpId(), STAFF_DEVICE);
 
-        log.info("员工登录成功: empId={}, name={}, loginId={}", staffInfo.getEmpId(), staffInfo.getName(), STAFF_LOGIN_PREFIX + staffInfo.getEmpId());
-
+        log.info("员工登录成功: empId:{}, name:{}, loginId:{}", staffInfo.getEmpId(), staffInfo.getName(), STAFF_LOGIN_PREFIX + staffInfo.getEmpId());
         return toStaffLoginUserVO(staffInfo);
     }
 

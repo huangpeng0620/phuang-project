@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.phuang.handler.memory.DatabaseChatMemoryStore;
 import com.phuang.handler.rag.PromptHandler;
 import com.phuang.handler.rag.aggregator.BgeScoringModel;
+import com.phuang.handler.rag.aggregator.KnowEngineHybridContentAggregator;
 import com.phuang.handler.rag.aggregator.KnowEngineReRankingContentAggregator;
 import com.phuang.handler.rag.aggregator.ProgressAwareContentAggregator;
 import com.phuang.handler.rag.retriever.KnowEngineElasticsearchContentRetriever;
@@ -306,16 +307,18 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
                     KnowEngineQueryRouter knowEngineQueryRouter = new KnowEngineQueryRouter(Arrays.asList(embeddingRetriever, fullTextRetriever, sqlRetriever),
                             chatModel, processCallback);
 
-                    //构造融合重排序器
+                    //构造融合重排序器(ProgressAwareContentAggregator -> KnowEngineHybridContentAggregator -> KnowEngineReRankingContentAggregator)
                     ProgressAwareContentAggregator knowEngineReRankingContentAggregator = ProgressAwareContentAggregator.builder()
                             .assistantMessageId(chatParam.getAssistantMessageId())
                             .progressCallback(processCallback)
                             .chatMessageService(chatMessageService)
-                            .delegate(KnowEngineReRankingContentAggregator.builder()
-                                    .scoringModel(BgeScoringModel.getInstance())
-                                    .minScore(0.6)
-                                    .maxResults(5)
-                                    .querySelector(queryToContents -> queryToContents.keySet().iterator().next())
+                            .delegate(KnowEngineHybridContentAggregator.builder()
+                                    .unstructuredAggregator(KnowEngineReRankingContentAggregator.builder()
+                                            .scoringModel(BgeScoringModel.getInstance())
+                                            .minScore(0.6)
+                                            .maxResults(5)
+                                            .querySelector(queryToContents -> queryToContents.keySet().iterator().next())
+                                            .build())
                                     .build())
                             .build();
 
