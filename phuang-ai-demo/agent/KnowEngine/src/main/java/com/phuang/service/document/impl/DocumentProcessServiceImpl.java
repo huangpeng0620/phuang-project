@@ -249,7 +249,7 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
      */
     @Override
     @HLock(prefixKey = "document-split", key = "#documentSplitParam.documentId", waitTime = 0)
-    public Integer split(DocumentSplitParam documentSplitParam){
+    public Integer split(DocumentSplitParam documentSplitParam) {
         KnowledgeDocumentEntity documentEntity = knowledgeDocumentService.getById(documentSplitParam.documentId());
         Assert.notNull(documentEntity, "文档不存在");
 

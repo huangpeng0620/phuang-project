@@ -131,6 +131,11 @@ public class VectorStoreServiceImpl implements VectorStoreService {
         }
     }
 
+    /**
+     * 将文档分块转换成 langchain4j的分块
+     * @param segment
+     * @return
+     */
     @Override
     public TextSegment toTextSegment(KnowledgeSegmentEntity segment) {
         Map<String, String> metadataMap = segment.getMetadataMap();

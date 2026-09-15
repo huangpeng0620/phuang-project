@@ -16,4 +16,6 @@ public interface MyCarService {
      */
     List<MyCarEntity> getCarByUserId(String userId);
 
+    MyCarEntity getCarByUser(String carId,String userId);
+
 }

@@ -23,5 +23,13 @@ public class MyCarServiceImpl extends ServiceImpl<MyCarMapper, MyCarEntity> impl
                 .eq(MyCarEntity::getUserId, userId));
     }
 
+    @Override
+    public MyCarEntity getCarByUser(String carId, String userId) {
+        return this.getOne(new LambdaQueryWrapper<MyCarEntity>()
+                .eq(MyCarEntity::getCarId, carId)
+                .eq(MyCarEntity::getUserId, userId));
+    }
+
+
 }
 
