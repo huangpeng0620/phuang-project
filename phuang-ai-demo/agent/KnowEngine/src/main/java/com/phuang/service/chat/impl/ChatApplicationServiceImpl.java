@@ -263,7 +263,7 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
                     List<MyCarEntity> myCars = myCarService.getCarByUserId(chatParam.getUserId());
                     if (CollectionUtils.isEmpty(myCars)) {
                         return Flux.just("[WARN]:您还没有添加车辆信息，请先添加车辆信息");
-                    } else if (myCars.size() >= 1) {
+                    } else if (!myCars.isEmpty()) {
                         return Flux.just("[CARD]:请先选择车辆")
                                 .concatWith(Flux.just("[CARD_CHOICE_MYCAR]:" + JSON.toJSONString(MyCarConverter.INSTANCE.toVOList(myCars))));
                     }
