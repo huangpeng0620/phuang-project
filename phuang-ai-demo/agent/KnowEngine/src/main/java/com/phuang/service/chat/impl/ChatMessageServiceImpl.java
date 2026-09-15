@@ -52,7 +52,7 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         String messageId = UUID.randomUUID().toString().replace("-", "");
         ChatMessageEntity chatMessageEntity = ChatMessageEntity.builder()
                 .messageId(messageId)
-                .type(ChatMessageType.USER)
+                .type(ChatMessageType.ASSISTANT)
                 .conversationId(conversationId)
                 .build();
         this.save(chatMessageEntity);
