@@ -95,6 +95,7 @@ public class KnowEngineElasticsearchContentRetriever extends AbstractElasticsear
                                                    final double minScore,
                                                    final Filter filter,
                                                    KnowledgeSegmentService knowledgeSegmentService) {
+        this.configuration = configuration;
         this.embeddingModel = embeddingModel;
         this.maxResults = maxResults;
         this.minScore = minScore;

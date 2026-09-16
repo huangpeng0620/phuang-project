@@ -1,5 +1,6 @@
 package com.phuang.service.chat.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.phuang.mapper.ChatConversationMapper;
@@ -10,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -53,5 +55,19 @@ public class ChatConversationServiceImpl extends ServiceImpl<ChatConversationMap
                 .eq(ChatConversationEntity::getConversationId, conversationId)
                 .set(ChatConversationEntity::getTitle, title)
                 .set(ChatConversationEntity::getUpdatedAt, LocalDateTime.now()));
+    }
+
+    /**
+     * 判断会话是否归属该用户
+     * @param conversationId 会话ID
+     * @param userId 用户ID
+     * @return
+     */
+    @Override
+    public boolean checkUserConversation(String conversationId, String userId) {
+        ChatConversationEntity chatConversationEntity = this.getOne(new LambdaQueryWrapper<ChatConversationEntity>()
+                .eq(ChatConversationEntity::getConversationId, conversationId)
+                .eq(ChatConversationEntity::getUserId, userId));
+        return Objects.nonNull(chatConversationEntity);
     }
 }

@@ -6,7 +6,8 @@
 2.  **思维链推理**：在内心进行逻辑推导，分析用户场景和意图边界。
 3.  **意图识别**：若相关，从定义的【7大核心意图】中选择最匹配的一个。
 4.  **实体提取**：提取对话中的关键信息（车型、故障、时间等）。
-5.  **格式化输出**：仅输出一个标准的JSON对象，`reasoning` 字段需包含你的推理过程摘要。严禁包含Markdown标记（如 ```json）或其他解释性文本。
+5.  **澄清判断**：判断当前问题是否缺少准确回答所必需的信息；如果缺少，只提出一个最关键的问题。
+6.  **格式化输出**：仅输出一个标准的JSON对象，`reasoning` 字段需包含你的推理过程摘要。严禁包含Markdown标记（如 ```json）或其他解释性文本。
 
 # Intent Taxonomy (7 Core Intents)
 请严格基于以下分类标准进行归类，不要创造新标签：
@@ -49,6 +50,13 @@
         - *例：* “我想买一辆SUV” -> 售前咨询与购买；“能不能便宜点？” -> 汽车营销政策。
 4.  **实体提取**：
     - 扫描文本提取具体车型、订单号、故障现象等。
+5.  **澄清判断**：
+    - 只有缺失信息会实质影响答案、导致当前无法准确回答时，`needClarification` 才为 `true`。
+    - 能够给出安全、有效的通用回答时，不要因为可选信息缺失而反问。
+    - 每次只询问一个最关键的信息。
+    - 需要澄清时填写 `clarificationQuestion` 和 `clarificationField`；不需要时两者必须为 `null`。
+    - `clarificationField` 优先使用实体字段名，如 `car_id`、`car_model`、`order_id`；没有对应字段时使用 `other`。
+    - 查询个人车辆档案、维修记录等必须定位具体用户车辆的场景，如果没有车辆ID，使用 `clarificationField: "car_id"`。
 
 # Entity Extraction Rules
 提取以下实体，若未提及则字段值为 `null`：
@@ -66,6 +74,9 @@
   "reasoning": "1.相关性判断... 2.场景定位... 3.辨析逻辑... -> 结论",
   "related": true,
   "intent": "7大核心意图之一",
+  "needClarification": false,
+  "clarificationQuestion": null,
+  "clarificationField": null,
   "entities": {
     "car_model": "...",
     "car_id": "...",
@@ -88,6 +99,9 @@ Output:
 "reasoning": "1.相关性：涉及玻璃水，相关。2.场景：用车阶段。3.辨析：用户请求‘教我一下’，属于学习操作方法（DIY），非进店维修。-> 车辆使用与技术指导",
 "related": true,
 "intent": "车辆使用与技术指导",
+"needClarification": false,
+"clarificationQuestion": null,
+"clarificationField": null,
 "entities": {
     "car_model": null,
     "car_id": null,
@@ -96,7 +110,7 @@ Output:
     "fault_description": null,
     "appointment_time": null,
     "part_name": null,
-    "function_name": "加玻璃水",
+    "function_name": "加玻璃水"
     }
 }
 ```
@@ -108,6 +122,9 @@ Output:
 "reasoning": "1.相关性：涉及中控屏，相关。2.场景：新车/维权阶段。3.辨析：用户表达‘太影响心情’，有强烈负面情绪，属于质量投诉。-> 投诉与维权",
 "related": true,
 "intent": "投诉与维权",
+"needClarification": false,
+"clarificationQuestion": null,
+"clarificationField": null,
 "entities": {
     "car_model": null,
     "car_id": null,
@@ -130,6 +147,9 @@ Output:
 "reasoning": "1.相关性：涉及中控屏，相关。2.场景：新车/维权阶段。3.辨析：用户表达‘太影响心情’，有强烈负面情绪，属于质量投诉。-> 投诉与维权",
 "related": true,
 "intent": "投诉与维权",
+"needClarification": false,
+"clarificationQuestion": null,
+"clarificationField": null,
 "entities": {
     "car_model": null,
     "car_id": "CAR00112312",
@@ -150,6 +170,9 @@ Output:
 "reasoning": "1.相关性：涉及雨刮器，相关。2.场景：修车阶段。3.辨析：用户询问‘去你们那换’，明确表达进店服务意愿。-> 售后维修与保养",
 "related": true,
 "intent": "售后维修与保养",
+"needClarification": false,
+"clarificationQuestion": null,
+"clarificationField": null,
 "entities": {
     "car_model": null,
     "car_id": null,
@@ -171,6 +194,9 @@ Output:
 "reasoning": "1.相关性：涉及育儿，与汽车无关。-> 闲聊与通用问答",
 "related": false,
 "intent": "闲聊与通用问答",
+"needClarification": false,
+"clarificationQuestion": null,
+"clarificationField": null,
 "entities": {
     "car_model": null,
     "car_id": null,
@@ -191,14 +217,64 @@ Output:
 "reasoning": "1.相关性：涉及混动系统，相关。2.场景：用车阶段。3.辨析：询问‘怎么工作’属于技术原理咨询。-> 车辆使用与技术指导",
 "related": true,
 "intent": "车辆使用与技术指导",
+"needClarification": false,
+"clarificationQuestion": null,
+"clarificationField": null,
 "entities": {
     "car_model": "混动版",
+    "car_id": null,
     "order_id": null,
     "dealer": null,
     "fault_description": "刹车有点不习惯",
     "appointment_time": null,
     "part_name": null,
     "function_name": "能量回收系统"
+    }
+}
+```
+
+User Input: "我的车有点问题，怎么办？"
+Output:
+```json
+{
+"reasoning": "用户只说明车辆有问题，没有描述故障现象，当前无法准确判断和回答，需要先补充具体现象。",
+"related": true,
+"intent": "其他",
+"needClarification": true,
+"clarificationQuestion": "请具体描述一下车辆出现了什么现象？",
+"clarificationField": "fault_description",
+"entities": {
+    "car_model": null,
+    "car_id": null,
+    "order_id": null,
+    "dealer": null,
+    "fault_description": null,
+    "appointment_time": null,
+    "part_name": null,
+    "function_name": null
+    }
+}
+```
+
+User Input: "帮我查一下我的车辆保养记录。"
+Output:
+```json
+{
+"reasoning": "用户要查询个人车辆保养记录，必须先明确具体是哪一辆用户车辆。",
+"related": true,
+"intent": "售后维修与保养",
+"needClarification": true,
+"clarificationQuestion": "请问您要查询哪一辆车的保养记录？",
+"clarificationField": "car_id",
+"entities": {
+    "car_model": null,
+    "car_id": null,
+    "order_id": null,
+    "dealer": null,
+    "fault_description": null,
+    "appointment_time": null,
+    "part_name": null,
+    "function_name": null
     }
 }
 ```

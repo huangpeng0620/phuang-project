@@ -17,6 +17,15 @@ public record IntentRecognitionResult(
         @JsonPropertyDescription("意图识别结果,售前咨询与购买、售后维修与保养、车辆使用与技术指导、投诉与维权、汽车营销政策、闲聊与通用问答、其他")
         String intent,
 
+        @JsonPropertyDescription("当前问题缺少准确回答所必需的信息时为 true")
+        boolean needClarification,
+
+        @JsonPropertyDescription("需要澄清时向用户提出的一个简短问题，否则为 null")
+        String clarificationQuestion,
+
+        @JsonPropertyDescription("需要补充的字段名，如 car_id、car_model、order_id；无法归类时为 other")
+        String clarificationField,
+
         @JsonPropertyDescription("从用户输入中提取的关键实体信息")
         Entities entities) {
 

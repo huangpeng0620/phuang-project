@@ -16,4 +16,6 @@ public interface ChatConversationService extends IService<ChatConversationEntity
 
     boolean updateTitle(String conversationId, String title);
 
+    boolean checkUserConversation(String conversationId, String userId);
+
 }

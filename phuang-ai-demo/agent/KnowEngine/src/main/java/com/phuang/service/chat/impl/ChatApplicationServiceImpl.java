@@ -2,8 +2,6 @@ package com.phuang.service.chat.impl;
 
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
-import com.phuang.handler.converter.CarInfoConverter;
-import com.phuang.handler.converter.MyCarConverter;
 import com.phuang.handler.memory.DatabaseChatMemoryStore;
 import com.phuang.handler.rag.PromptHandler;
 import com.phuang.handler.rag.aggregator.BgeScoringModel;
@@ -16,14 +14,15 @@ import com.phuang.handler.rag.retriever.ProgressAwareContentRetriever;
 import com.phuang.handler.rag.router.KnowEngineQueryRouter;
 import com.phuang.handler.rag.transformer.KnowEngineQueryTransformer;
 import com.phuang.model.dto.ChatParam;
-import com.phuang.model.entity.CarInfoEntity;
+import com.phuang.model.dto.IntentRecognitionResult;
+import com.phuang.model.dto.PendingClarification;
 import com.phuang.model.entity.MyCarEntity;
 import com.phuang.model.enums.ChatSource;
-import com.phuang.model.enums.KnowEngineIntent;
 import com.phuang.model.enums.RoleEnum;
-import com.phuang.service.CarInfoService;
+import com.phuang.model.exception.BusinessException;
 import com.phuang.service.KnowledgeSegmentService;
 import com.phuang.service.MyCarService;
+import com.phuang.service.UserRoleService;
 import com.phuang.service.ai.CommonChatService;
 import com.phuang.service.ai.IntentRecognitionService;
 import com.phuang.service.ai.KnowEngineChatAiService;
@@ -52,6 +51,7 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.elasticsearch.client.RestClient;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import reactor.core.Disposable;
@@ -65,6 +65,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -116,7 +117,14 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
     private MyCarService myCarService;
 
     @Resource
-    private CarInfoService carInfoService;
+    private UserRoleService userRoleService;
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
+
+    private static final String CLARIFICATION_KEY_PREFIX = "know-engine:chat-clarification:";
+
+    private static final long CLARIFICATION_TTL_MINUTES = 15;
 
     private IntentRecognitionService intentRecognitionService;
 
@@ -173,6 +181,9 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
      */
     @Override
     public Flux<String> chat(String userId, String content, String conversationId, ChatSource chatSource) {
+        if (StrUtil.isNotEmpty(conversationId) && chatConversationService.checkUserConversation(conversationId, userId)) {
+            throw new BusinessException("会话任务异常");
+        }
         final String finalConversationId;
         if (StrUtil.isEmpty(conversationId)) {
             //临时会话标题
@@ -203,84 +214,207 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
             finalConversationId = conversationId;
         }
         //保存消息记录
-        String messageId = chatMessageService.saveUserMessage(conversationId, content);
-        String aiMessageId = chatMessageService.saveAssistantMessage(conversationId);
+        String messageId = chatMessageService.saveUserMessage(finalConversationId, content);
+        String aiMessageId = chatMessageService.saveAssistantMessage(finalConversationId);
 
-        //进入流式对话
-        return Flux.just("[PROGRESS]:正在识别您的意图...")
-                .concatWith(Mono.fromCallable(() -> {
-                            // 调用LLM意图识别
-                            return intentRecognitionService.chat(conversationId, content);
-                        })
-                        .subscribeOn(Schedulers.boundedElastic())
-                        .flatMapMany(intentRecognitionResult -> {
+        PendingClarification pending = getPendingClarification(finalConversationId);
+        String question = content;
+        if (pending != null && userId.equals(pending.getUserId())) {
+            if ("取消".equals(content.trim())) {
+                clearPendingClarification(finalConversationId);
+                return textResponse(aiMessageId, "已取消上一个问题，请重新输入您想咨询的问题。")
+                        .concatWith(Mono.just("[DONE]:" + finalConversationId));
+            }
 
-                            // 意图识别完成后清除缓存，避免意图识别的AI响应污染后续RAG对话的历史记忆
-                            databaseChatMemoryStore.evictCache(finalConversationId);
+            if ("car_id".equals(pending.getClarificationField()) && !CollectionUtils.isEmpty(pending.getCandidateCarIds())) {
+                MyCarEntity selectedCar = resolveCarByIndex(content, pending.getCandidateCarIds(),
+                        myCarService.getCarByUserId(userId));
+                if (selectedCar == null) {
+                    return textResponse(aiMessageId, "没有识别到您选择的车辆，请回复列表中的有效序号。")
+                            .concatWith(Mono.just("[DONE]:" + finalConversationId));
+                }
+                question = withVehicleContext(pending.getOriginalContent(), selectedCar);
+            } else {
+                question = pending.getOriginalContent() + "\n\n用户补充信息：" + content.trim();
+            }
+            clearPendingClarification(finalConversationId);
+        }
 
-                            if (!intentRecognitionResult.related()) {
-                                //使用通用大模型进行对话
-                                StringBuilder contentBuilder = new StringBuilder();
-                                return Flux.concat(Flux.just("[PROGRESS]:正在为您生成回答..."),
-                                        commonChatService.streamChat(userId, content)
-                                                .doOnNext(token -> contentBuilder.append(token))
-                                                .doOnComplete(() -> chatMessageService.updateContent(aiMessageId, contentBuilder.toString())));
-                            }
-                            // 进入RAG流程（进度由内部组件发出）
-                            return ragChat(ChatParam.builder()
-                                    .userId(userId)
-                                    .conversationId(finalConversationId)
-                                    .messageId(messageId)
-                                    .content(content)
-                                    .assistantMessageId(aiMessageId)
-                                    .intentRecognitionResult(intentRecognitionResult)
-                                    .chatSource(chatSource)
-                                    .build());
-                        }))
+        return processQuestion(userId, question, finalConversationId, messageId, aiMessageId, chatSource)
                 .doOnError(e -> log.error("流式对话异常,conversationId:{}", finalConversationId, e))
                 .concatWith(Mono.just("[DONE]:" + finalConversationId));
     }
 
     /**
-     * 进入RAG流式对话
-     * <p>
-     *      1. 根据意图识别结果，判断是否需要车辆信息
-     *      2. 如果车辆信息不完善，则返回车辆信息不完善提示
-     *      3. 根据意图识别结果，判断是否需要车辆信息
-     * </p>
+     * 对完整问题执行意图识别，并统一分流到澄清、普通对话或 RAG
+     */
+    private Flux<String> processQuestion(String userId,
+                                         String content,
+                                         String conversationId,
+                                         String messageId,
+                                         String assistantMessageId,
+                                         ChatSource chatSource) {
+        return Flux.just("[PROGRESS]:正在识别您的意图...")
+                .concatWith(Mono.fromCallable(() -> intentRecognitionService.chat(conversationId, content))
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .flatMapMany(intentResult -> {
+                            databaseChatMemoryStore.evictCache(conversationId);
+                            ChatParam chatParam = ChatParam.builder()
+                                    .userId(userId)
+                                    .conversationId(conversationId)
+                                    .messageId(messageId)
+                                    .content(content)
+                                    .assistantMessageId(assistantMessageId)
+                                    .intentRecognitionResult(intentResult)
+                                    .chatSource(chatSource)
+                                    .build();
+                            if (intentResult.needClarification() && StrUtil.isNotBlank(intentResult.clarificationQuestion())) {
+                                return clarify(chatParam);
+                            }
+                            if (!intentResult.related()) {
+                                StringBuilder contentBuilder = new StringBuilder();
+                                return Flux.concat(Flux.just("[PROGRESS]:正在为您生成回答..."),
+                                        commonChatService.streamChat(userId, content)
+                                                .doOnNext(contentBuilder::append)
+                                                .doOnComplete(() -> chatMessageService.updateContent(assistantMessageId, contentBuilder.toString())));
+                            }
+                            return doChat(chatParam);
+                        }));
+    }
+
+    /**
+     * 用户问题澄清分支
+     *     <P>
+     *       通用澄清场景仅返回普通文本, 只有 car_id 场景会附加用户车辆编号列表
+     *     </P>
      * @param chatParam
      * @return
      */
-    public Flux<String> ragChat(ChatParam chatParam) {
-        KnowEngineIntent intent = KnowEngineIntent.getIntent(chatParam.getIntentRecognitionResult());
-        /**
-         * 只有用户通过网页端访问时，才需要车辆信息
-         */
-        if(chatParam.getChatSource() == ChatSource.USER_WEB){
-            // 如果是维保服务、技术支持，则需要车辆信息
-            if (intent == KnowEngineIntent.CAR_MAINTENANCE || intent == KnowEngineIntent.CAR_TECH_SUPPORT) {
-                if (chatParam.getIntentRecognitionResult().entities().car_id() == null) {
-                    List<MyCarEntity> myCars = myCarService.getCarByUserId(chatParam.getUserId());
-                    if (CollectionUtils.isEmpty(myCars)) {
-                        return Flux.just("[WARN]:您还没有添加车辆信息，请先添加车辆信息");
-                    } else if (!myCars.isEmpty()) {
-                        return Flux.just("[CARD]:请先选择车辆")
-                                .concatWith(Flux.just("[CARD_CHOICE_MYCAR]:" + JSON.toJSONString(MyCarConverter.INSTANCE.toVOList(myCars))));
-                    }
-                }
-            }
+    private Flux<String> clarify(ChatParam chatParam) {
+        IntentRecognitionResult intentResult = chatParam.getIntentRecognitionResult();
+        List<MyCarEntity> myCars = null;
 
-            // 如果是营销政策，则需要车辆信息
-            if (intent == KnowEngineIntent.CAR_MARKETING) {
-                if (chatParam.getIntentRecognitionResult().entities().car_model() == null) {
-                    List<CarInfoEntity> carInfoList = carInfoService.getCarInfoByBrand(null);
-                    return Flux.just("[CARD]:请先选择您要咨询的车辆")
-                            .concatWith(Flux.just("[CARD_CHOICE_CAR]:" + JSON.toJSONString(CarInfoConverter.INSTANCE.toVOList(carInfoList))));
-                }
+        if (chatParam.getChatSource() == ChatSource.USER_WEB && "car_id".equals(intentResult.clarificationField())) {
+            myCars = myCarService.getCarByUserId(chatParam.getUserId());
+            if (CollectionUtils.isEmpty(myCars)) {
+                return textResponse(chatParam.getAssistantMessageId(), "您还没有添加车辆信息，请先添加车辆信息。");
+            }
+            if (myCars.size() == 1) {
+                chatParam.setContent(withVehicleContext(chatParam.getContent(), myCars.getFirst()));
+                return doChat(chatParam);
             }
         }
 
-        return doChat(chatParam);
+        PendingClarification pending = PendingClarification.builder()
+                .userId(chatParam.getUserId())
+                .originalContent(chatParam.getContent())
+                .clarificationField(StrUtil.blankToDefault(intentResult.clarificationField(), "other"))
+                .candidateCarIds(myCars == null ? null : myCars.stream().map(MyCarEntity::getCarId).toList())
+                .build();
+        if (!savePendingClarification(chatParam.getConversationId(), pending)) {
+            return textResponse(chatParam.getAssistantMessageId(), "暂时无法记录补充信息，请稍后重新提问。");
+        }
+
+        String question = intentResult.clarificationQuestion();
+        if (!CollectionUtils.isEmpty(myCars)) {
+            question += "\n\n" + buildVehicleChoiceText(myCars);
+        }
+        return textResponse(chatParam.getAssistantMessageId(), question);
+    }
+
+    /**
+     * 根据用户回复的编号解析车辆，并再次确认车辆仍属于当前用户。
+     */
+    MyCarEntity resolveCarByIndex(String answer, List<String> candidateCarIds, List<MyCarEntity> currentCars) {
+        if (StrUtil.isBlank(answer) || CollectionUtils.isEmpty(candidateCarIds) || CollectionUtils.isEmpty(currentCars)) {
+            return null;
+        }
+        try {
+            int index = Integer.parseInt(answer.trim()) - 1;
+            if (index < 0 || index >= candidateCarIds.size()) {
+                return null;
+            }
+            String selectedCarId = candidateCarIds.get(index);
+            return currentCars.stream()
+                    .filter(car -> selectedCarId.equals(car.getCarId()))
+                    .findFirst()
+                    .orElse(null);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 生成普通 Markdown 文本格式的车辆编号列表
+     */
+    private String buildVehicleChoiceText(List<MyCarEntity> cars) {
+        StringBuilder text = new StringBuilder("请选择车辆并回复序号：\n\n");
+        for (int i = 0; i < cars.size(); i++) {
+            MyCarEntity car = cars.get(i);
+            text.append(i + 1).append(". ").append(vehicleName(car));
+            if (StrUtil.isNotBlank(car.getPlateNumber())) {
+                text.append("（").append(car.getPlateNumber()).append("）");
+            }
+            text.append('\n');
+        }
+        return text.append("\n如需放弃，请回复“取消”。").toString();
+    }
+
+    /**
+     * 将已确认的车辆信息追加到原问题，供下一次意图识别和 RAG 使用
+     */
+    private String withVehicleContext(String originalContent, MyCarEntity car) {
+        StringBuilder content = new StringBuilder(originalContent)
+                .append("\n\n已确认车辆：").append(vehicleName(car))
+                .append("；车辆ID：").append(car.getCarId());
+        if (StrUtil.isNotBlank(car.getCarInfoId())) {
+            content.append("；车型ID：").append(car.getCarInfoId());
+        }
+        return content.toString();
+    }
+
+    private String vehicleName(MyCarEntity car) {
+        if (StrUtil.isNotBlank(car.getFullName())) {
+            return car.getFullName();
+        }
+        if (StrUtil.isNotBlank(car.getNickname())) {
+            return car.getNickname();
+        }
+        return "车辆 " + car.getCarId();
+    }
+
+    private Flux<String> textResponse(String assistantMessageId, String content) {
+        chatMessageService.updateContent(assistantMessageId, content);
+        return Flux.just(content);
+    }
+
+    private PendingClarification getPendingClarification(String conversationId) {
+        try {
+            String json = stringRedisTemplate.opsForValue().get(CLARIFICATION_KEY_PREFIX + conversationId);
+            return StrUtil.isBlank(json) ? null : JSON.parseObject(json, PendingClarification.class);
+        } catch (Exception e) {
+            log.error("读取澄清状态失败, conversationId:{}", conversationId, e);
+            return null;
+        }
+    }
+
+    private boolean savePendingClarification(String conversationId, PendingClarification pending) {
+        try {
+            stringRedisTemplate.opsForValue().set(CLARIFICATION_KEY_PREFIX + conversationId,
+                    JSON.toJSONString(pending), CLARIFICATION_TTL_MINUTES, TimeUnit.MINUTES);
+            return true;
+        } catch (Exception e) {
+            log.error("保存澄清状态失败, conversationId:{}", conversationId, e);
+            return false;
+        }
+    }
+
+    private void clearPendingClarification(String conversationId) {
+        try {
+            stringRedisTemplate.delete(CLARIFICATION_KEY_PREFIX + conversationId);
+        } catch (Exception e) {
+            log.error("清除澄清状态失败, conversationId:{}", conversationId, e);
+        }
     }
 
     /**
@@ -426,11 +560,11 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
         // 默认权限过滤器：允许访客权限
         Filter permissionFilter = metadataKey(ACCESSIBLE_BY).isEqualTo(RoleEnum.VISITOR.name());
 
-        // 根据用户角色获取权限 todo
-        //RoleEnum roleEnum = userRoleService.getUserRole(chatParam);
+        // 根据用户角色获取权限
+        RoleEnum roleEnum = userRoleService.getUserRole(chatParam);
 
         // 获取该文档支持的所有权限
-        String[] permissions = DocumentPermissionUtils.getDocumentAccessiblePermission(null);
+        String[] permissions = DocumentPermissionUtils.getDocumentAccessiblePermission(roleEnum);
         for (String permission : permissions) {
             // 非访客权限时，将权限用or连接，表示支持多种权限
             if (!RoleEnum.VISITOR.name().equals(permission)) {

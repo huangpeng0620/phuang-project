@@ -5,10 +5,7 @@ import com.phuang.service.AuthService;
 import com.phuang.service.chat.ChatApplicationService;
 import jakarta.annotation.Resource;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
 /**
@@ -33,7 +30,7 @@ public class ChatController {
      * @param conversationId 会话ID
      * @return
      */
-    @PostMapping(value = "/send", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @GetMapping(value = "/send", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> send(@RequestParam("content") String content,
                              @RequestParam(value = "conversationId", required = false) String conversationId) {
         String userId = authService.getCurrentUserId();
