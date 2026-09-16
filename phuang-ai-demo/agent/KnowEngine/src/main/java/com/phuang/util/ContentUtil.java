@@ -14,8 +14,8 @@ public class ContentUtil {
     /**
      * 将内容标记为跳过重排序/融合
      * <p>
-     * SQL/Cypher 等结构化查询结果带有该标记后，聚合器会直接透传，不再进行 RRF 融合和 scoring model 重排序。
-     *
+     *      SQL/Cypher 等结构化查询结果带有该标记后，聚合器会直接透传，不再进行 RRF 融合和 scoring model 重排序。
+     * </p>
      * @param content 原始内容
      * @return 带有 skipRerank 标记的内容
      */

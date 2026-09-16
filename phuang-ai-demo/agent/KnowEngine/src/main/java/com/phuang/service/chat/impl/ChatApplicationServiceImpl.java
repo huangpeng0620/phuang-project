@@ -1,7 +1,9 @@
 package com.phuang.service.chat.impl;
 
+import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
+import com.google.common.collect.Lists;
 import com.phuang.handler.memory.DatabaseChatMemoryStore;
 import com.phuang.handler.rag.PromptHandler;
 import com.phuang.handler.rag.aggregator.BgeScoringModel;
@@ -17,9 +19,11 @@ import com.phuang.model.dto.ChatParam;
 import com.phuang.model.dto.IntentRecognitionResult;
 import com.phuang.model.dto.PendingClarification;
 import com.phuang.model.entity.MyCarEntity;
+import com.phuang.model.entity.TableMeta;
 import com.phuang.model.enums.ChatSource;
 import com.phuang.model.enums.RoleEnum;
 import com.phuang.model.exception.BusinessException;
+import com.phuang.service.KnowEngineTableMetaService;
 import com.phuang.service.KnowledgeSegmentService;
 import com.phuang.service.MyCarService;
 import com.phuang.service.UserRoleService;
@@ -68,10 +72,12 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static com.phuang.config.ElasticSearchConfiguration.INDEX_NAME;
 import static com.phuang.model.constant.MetadataKeyConstant.ACCESSIBLE_BY;
 import static dev.langchain4j.store.embedding.filter.MetadataFilterBuilder.metadataKey;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  *
@@ -122,6 +128,9 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
+    @Resource
+    private KnowEngineTableMetaService knowEngineTableMetaService;
+
     private static final String CLARIFICATION_KEY_PREFIX = "know-engine:chat-clarification:";
 
     private static final long CLARIFICATION_TTL_MINUTES = 15;
@@ -146,6 +155,9 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
 
     @Value("${langchain4j.open-ai.chat-model.base-url}")
     private String chatModelBaseUrl;
+
+    @Value("classpath:sql/retrieve_tables.sql")
+    private org.springframework.core.io.Resource tablesSql;
 
     @PostConstruct
     public void init() {
@@ -473,10 +485,12 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
 
                     ProgressAwareContentRetriever sqlRetriever = null;
                     try {
+                        //构建表结构数据
+                        String databaseStructure = buildDatabaseStructure();
                         sqlRetriever = ProgressAwareContentRetriever.builder().delegate(KnowEngineSqlDatabaseContentRetriever.builder()
                                         .dataSource(dataSource)
                                         .promptTemplate(new PromptTemplate(textToSqlPrompt.getContentAsString(StandardCharsets.UTF_8)))
-                                        .databaseStructure(null)
+                                        .databaseStructure(databaseStructure)
                                         .chatModel(chatModel)
                                         .fallbackRetriever(embeddingRetriever)
                                         .build())
@@ -486,7 +500,8 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
                         log.error("Error creating SQL retriever", e);
                     }
 
-                    KnowEngineQueryRouter knowEngineQueryRouter = new KnowEngineQueryRouter(Arrays.asList(embeddingRetriever, fullTextRetriever, sqlRetriever),
+                    // 构建查询路由器
+                    KnowEngineQueryRouter knowEngineQueryRouter = new KnowEngineQueryRouter(Lists.newArrayList(embeddingRetriever, fullTextRetriever, sqlRetriever),
                             chatModel, processCallback);
 
                     //构造融合重排序器(ProgressAwareContentAggregator -> KnowEngineHybridContentAggregator -> KnowEngineReRankingContentAggregator)
@@ -548,6 +563,32 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
                     sink.onCancel(disposable::dispose);
                 }).subscribeOn(Schedulers.boundedElastic())
                 .publishOn(Schedulers.parallel());
+    }
+
+    /**
+     * 构建数据库结构描述
+     * <p>
+     *   数据库结构的来源:
+     *     1.当前系统已存在的系统业务表结构(通过 classpath:sql/retrieve_tables.sql 维护)
+     *     2.用户自定义上传的用于数据检索的动态表结构(通过 table_meta 元数据表维护 )
+     *  将两者合并作为 Text2SQL Prompt 的 databaseStructure 参数，使 LLM 感知所有可查询的表。
+     * </p>
+     */
+    private String buildDatabaseStructure() throws IOException {
+        StringBuilder sb = new StringBuilder();
+        // 静态表结构
+        sb.append(tablesSql.getContentAsString(UTF_8));
+        // 从 table_meta 读取当前激活版本对应的动态表结构
+        List<TableMeta> tableMetas = knowEngineTableMetaService.listActiveForQuery();
+        if (CollectionUtil.isNotEmpty(tableMetas)) {
+            sb.append("\n\n");
+            String dynamicSql = tableMetas.stream()
+                    .filter(meta -> StrUtil.isNotEmpty(meta.getCreateSql()))
+                    .map(TableMeta::getCreateSql)
+                    .collect(Collectors.joining("\n\n"));
+            sb.append(dynamicSql);
+        }
+        return sb.toString();
     }
 
     /**
