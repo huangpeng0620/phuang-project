@@ -195,15 +195,12 @@ public class KnowEngineElasticsearchContentRetriever extends AbstractElasticsear
     /**
      * 执行全文检索查询 (默认的全文搜索不支持 filter，所以需要定制)
      * <p>
-     * 根据权限过滤条件决定查询策略：
-     * <ul>
-     *   <li>无权限过滤（accessibleValues 为空）：使用简单的 match 查询，仅对 text 字段进行全文匹配</li>
-     *   <li>有权限过滤（accessibleValues 非空）：使用 bool 查询，
-     *       must 子句对 text 字段全文匹配，filter 子句通过 terms 查询限定 metadata.accessibleBy 字段，
-     *       确保只返回当前用户有权访问的文档</li>
-     * </ul>
-     * 查询结果转换为 Content 列表，携带 SCORE 和 EMBEDDING_ID 元数据
+     *     根据权限过滤条件决定查询策略:
+     *      1.无权限过滤（accessibleValues 为空）：使用简单的 match 查询，仅对 text 字段进行全文匹配
+     *      2.有权限过滤（accessibleValues 非空）：使用 bool 查询，must 子句对 text 字段全文匹配，filter 子句通过 terms 查询限定 metadata.accessibleBy 字段,确保只返回当前用户有权访问的文档
      *
+     * 查询结果转换为 Content 列表，携带 SCORE 和 EMBEDDING_ID 元数据
+     * </p>
      * @param query 查询对象，包含检索文本
      * @return 带元数据的 Content 列表
      */
@@ -212,8 +209,7 @@ public class KnowEngineElasticsearchContentRetriever extends AbstractElasticsear
         try {
             // 从 Filter 树中提取所有 IsEqualTo 的 value，用于权限过滤
             List<String> accessibleValues = extractFilterValues(filter);
-            SearchResponse<Document> response = client.search(
-                    s -> s.index(indexName).query(q -> accessibleValues.isEmpty() ?
+            SearchResponse<Document> response = client.search(s -> s.index(indexName).query(q -> accessibleValues.isEmpty() ?
                             // 无权限过滤：简单 match 查询
                             q.match(m -> m.field("text").query(query.text()))
                             // 有权限过滤：bool 查询 = must(全文匹配) + filter(权限过滤)
@@ -226,12 +222,8 @@ public class KnowEngineElasticsearchContentRetriever extends AbstractElasticsear
             List<TextSegment> results = toTextList(response);
             // 将 TextSegment 转换为 Content，携带 SCORE 和 EMBEDDING_ID 元数据
             return results.stream()
-                    .map(t -> Content.from(
-                            t,
-                            Map.of(
-                                    ContentMetadata.SCORE, t.metadata().getDouble(ContentMetadata.SCORE.name()),
-                                    ContentMetadata.EMBEDDING_ID,
-                                    t.metadata().getString(ContentMetadata.EMBEDDING_ID.name()))))
+                    .map(t -> Content.from(t, Map.of(ContentMetadata.SCORE, t.metadata().getDouble(ContentMetadata.SCORE.name()),
+                            ContentMetadata.EMBEDDING_ID, t.metadata().getString(ContentMetadata.EMBEDDING_ID.name()))))
                     .toList();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -253,7 +245,7 @@ public class KnowEngineElasticsearchContentRetriever extends AbstractElasticsear
     }
 
     /**
-     * 递归遍历 langchain4j Filter 树，提取所有 IsEqualTo 的 value 字符串列表。
+     * 递归遍历 langchain4j Filter 树，提取所有 IsEqualTo 的 value 字符串列表
      * <p>
      * 支持 Or(IsEqualTo, ...) 结构，适配权限过滤场景。
      */
@@ -290,11 +282,8 @@ public class KnowEngineElasticsearchContentRetriever extends AbstractElasticsear
     private List<Content> mapResultsToContentList(EmbeddingSearchResult<TextSegment> searchResult) {
         List<Content> result = searchResult.matches().stream()
                 .filter(f -> f.score() > minScore)
-                .map(m -> Content.from(
-                        m.embedded(),
-                        Map.of(
-                                ContentMetadata.SCORE, m.score(),
-                                ContentMetadata.EMBEDDING_ID, m.embeddingId())))
+                .map(m -> Content.from(m.embedded(), Map.of(ContentMetadata.SCORE, m.score(),
+                        ContentMetadata.EMBEDDING_ID, m.embeddingId())))
                 .toList();
         log.debug("Found [{}] relevant documents in Elasticsearch index [{}].", result.size(), indexName);
         return result;

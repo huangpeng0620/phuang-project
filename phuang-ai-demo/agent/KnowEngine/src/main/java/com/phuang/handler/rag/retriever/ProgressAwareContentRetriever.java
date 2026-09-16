@@ -1,5 +1,6 @@
 package com.phuang.handler.rag.retriever;
 
+import dev.langchain4j.community.rag.content.retriever.neo4j.Neo4jText2CypherRetriever;
 import dev.langchain4j.experimental.rag.content.retriever.sql.SqlDatabaseContentRetriever;
 import dev.langchain4j.rag.content.Content;
 import dev.langchain4j.rag.content.retriever.ContentRetriever;

@@ -11,6 +11,7 @@ import com.phuang.handler.rag.aggregator.KnowEngineHybridContentAggregator;
 import com.phuang.handler.rag.aggregator.KnowEngineReRankingContentAggregator;
 import com.phuang.handler.rag.aggregator.ProgressAwareContentAggregator;
 import com.phuang.handler.rag.retriever.KnowEngineElasticsearchContentRetriever;
+import com.phuang.handler.rag.retriever.KnowEngineNeo4jContentRetriever;
 import com.phuang.handler.rag.retriever.KnowEngineSqlDatabaseContentRetriever;
 import com.phuang.handler.rag.retriever.ProgressAwareContentRetriever;
 import com.phuang.handler.rag.router.KnowEngineQueryRouter;
@@ -35,6 +36,7 @@ import com.phuang.service.chat.ChatApplicationService;
 import com.phuang.service.chat.ChatConversationService;
 import com.phuang.service.chat.ChatMessageService;
 import com.phuang.util.DocumentPermissionUtils;
+import dev.langchain4j.community.rag.content.retriever.neo4j.Neo4jGraph;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
@@ -54,6 +56,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.elasticsearch.client.RestClient;
+import org.neo4j.driver.Driver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -66,7 +69,6 @@ import reactor.core.scheduler.Schedulers;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -131,6 +133,9 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
     @Resource
     private KnowEngineTableMetaService knowEngineTableMetaService;
 
+    @Resource
+    private Driver neo4jDriver;
+
     private static final String CLARIFICATION_KEY_PREFIX = "know-engine:chat-clarification:";
 
     private static final long CLARIFICATION_TTL_MINUTES = 15;
@@ -149,6 +154,9 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
 
     @Value("classpath:prompts/text-to-sql-prompt.txt")
     private org.springframework.core.io.Resource textToSqlPrompt;
+
+    @Value("classpath:prompts/text-to-cypher-prompt.txt")
+    private org.springframework.core.io.Resource textToCypherPrompt;
 
     @Value("${langchain4j.open-ai.chat-model.api-key}")
     private String chatModelApiKey;
@@ -500,6 +508,23 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
                     } catch (IOException e) {
                         log.error("Error creating SQL retriever", e);
                     }
+
+                    ProgressAwareContentRetriever neo4jRetriever = null;
+                    try {
+                        neo4jRetriever = new ProgressAwareContentRetriever(
+                                KnowEngineNeo4jContentRetriever.builder()
+                                        .graph(Neo4jGraph.builder()
+                                                .driver(neo4jDriver)
+                                                .build())
+                                        .chatModel(chatModel)
+                                        .promptTemplate(new PromptTemplate(textToCypherPrompt.getContentAsString(UTF_8)))
+                                        .fallbackRetriever(embeddingRetriever)
+                                        .userId(chatParam.getUserId())
+                                        .build(), processCallback);
+                    } catch (IOException e) {
+                        log.warn("Error creating Neo4j retriever", e);
+                    }
+
 
                     // 构建查询路由器
                     KnowEngineQueryRouter knowEngineQueryRouter = new KnowEngineQueryRouter(Lists.newArrayList(embeddingRetriever, fullTextRetriever, sqlRetriever),
