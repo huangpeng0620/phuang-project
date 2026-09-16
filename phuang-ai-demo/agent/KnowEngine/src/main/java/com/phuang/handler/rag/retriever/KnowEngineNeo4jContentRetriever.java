@@ -9,6 +9,7 @@ import dev.langchain4j.model.input.PromptTemplate;
 import dev.langchain4j.rag.content.Content;
 import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.rag.query.Query;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.utils.Lists;
@@ -48,6 +49,40 @@ public class KnowEngineNeo4jContentRetriever implements ContentRetriever {
                                            ContentRetriever fallbackRetriever,
                                            String userId) {
         this.neo4jText2CypherRetriever = neo4jText2CypherRetriever;
+        this.fallbackRetriever = fallbackRetriever;
+        this.userId = userId;
+    }
+
+    /**
+     * 根据 Neo4j 和模型配置构建图数据库检索器。
+     */
+    @Builder
+    private KnowEngineNeo4jContentRetriever(Neo4jGraph graph,
+                                            PromptTemplate promptTemplate,
+                                            List<String> examples,
+                                            List<String> relationships,
+                                            String dialect,
+                                            Integer maxRetries,
+                                            ChatModel chatModel,
+                                            ContentRetriever fallbackRetriever,
+                                            String userId) {
+        Neo4jText2CypherRetriever.Builder neo4jBuilder = Neo4jText2CypherRetriever.builder()
+                .graph(graph)
+                .chatModel(chatModel)
+                .maxRetries(maxRetries == null ? 1 : maxRetries);
+        if (promptTemplate != null) {
+            neo4jBuilder.promptTemplate(promptTemplate);
+        }
+        if (examples != null) {
+            neo4jBuilder.examples(examples);
+        }
+        if (relationships != null) {
+            neo4jBuilder.relationships(relationships);
+        }
+        if (dialect != null) {
+            neo4jBuilder.dialect(dialect);
+        }
+        this.neo4jText2CypherRetriever = neo4jBuilder.build();
         this.fallbackRetriever = fallbackRetriever;
         this.userId = userId;
     }
@@ -111,89 +146,5 @@ public class KnowEngineNeo4jContentRetriever implements ContentRetriever {
         // 列名后没有换行符，或换行符后无实际内容，则表示无数据
         return dataStartIndex == -1 || text.substring(dataStartIndex + 1).trim().isEmpty();
     }
-
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    public static class Builder {
-        private Neo4jGraph graph;
-        private PromptTemplate promptTemplate;
-        private List<String> examples;
-        private List<String> relationships;
-        private String dialect;
-        private int maxRetries = 1;
-        private ChatModel chatModel;
-        private ContentRetriever fallbackRetriever;
-        private String userId;
-
-        public Builder graph(Neo4jGraph graph) {
-            this.graph = graph;
-            return this;
-        }
-
-        public Builder promptTemplate(PromptTemplate promptTemplate) {
-            this.promptTemplate = promptTemplate;
-            return this;
-        }
-
-        public Builder examples(List<String> examples) {
-            this.examples = examples;
-            return this;
-        }
-
-        public Builder relationships(List<String> relationships) {
-            this.relationships = relationships;
-            return this;
-        }
-
-        public Builder dialect(String dialect) {
-            this.dialect = dialect;
-            return this;
-        }
-
-        public Builder maxRetries(int maxRetries) {
-            this.maxRetries = maxRetries;
-            return this;
-        }
-
-        public Builder chatModel(ChatModel chatModel) {
-            this.chatModel = chatModel;
-            return this;
-        }
-
-        public Builder fallbackRetriever(ContentRetriever fallbackRetriever) {
-            this.fallbackRetriever = fallbackRetriever;
-            return this;
-        }
-
-        public Builder userId(String userId) {
-            this.userId = userId;
-            return this;
-        }
-
-        public KnowEngineNeo4jContentRetriever build() {
-            Neo4jText2CypherRetriever.Builder neo4jBuilder = Neo4jText2CypherRetriever.builder()
-                    .graph(graph)
-                    .chatModel(chatModel)
-                    .maxRetries(maxRetries);
-
-            if (promptTemplate != null) {
-                neo4jBuilder.promptTemplate(promptTemplate);
-            }
-            if (examples != null) {
-                neo4jBuilder.examples(examples);
-            }
-            if (relationships != null) {
-                neo4jBuilder.relationships(relationships);
-            }
-            if (dialect != null) {
-                neo4jBuilder.dialect(dialect);
-            }
-
-            return new KnowEngineNeo4jContentRetriever(neo4jBuilder.build(), fallbackRetriever, userId);
-        }
-    }
-
 
 }

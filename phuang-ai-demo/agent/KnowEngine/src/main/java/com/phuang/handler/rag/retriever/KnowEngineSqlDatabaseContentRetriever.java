@@ -8,6 +8,7 @@ import dev.langchain4j.model.input.PromptTemplate;
 import dev.langchain4j.rag.content.Content;
 import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.rag.query.Query;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.utils.Lists;
@@ -50,6 +51,26 @@ public class KnowEngineSqlDatabaseContentRetriever implements ContentRetriever {
         this.sqlDatabaseContentRetriever = sqlDatabaseContentRetriever;
         this.fallbackRetriever = fallbackRetriever;
         this.userId = userId;
+    }
+
+    /**
+     * 根据数据库连接和模型配置构建 SQL 检索器。
+     */
+    @Builder
+    private KnowEngineSqlDatabaseContentRetriever(DataSource dataSource,
+                                                  PromptTemplate promptTemplate,
+                                                  String databaseStructure,
+                                                  ChatModel chatModel,
+                                                  ContentRetriever fallbackRetriever,
+                                                  String userId) {
+        this(SqlDatabaseContentRetriever.builder()
+                        .dataSource(dataSource)
+                        .promptTemplate(promptTemplate)
+                        .databaseStructure(databaseStructure)
+                        .chatModel(chatModel)
+                        .build(),
+                fallbackRetriever,
+                userId);
     }
 
     private static final String QUESTION_TEMPLATE = """
@@ -111,56 +132,4 @@ public class KnowEngineSqlDatabaseContentRetriever implements ContentRetriever {
         return dataStartIndex == -1 || text.substring(dataStartIndex + 1).trim().isEmpty();
     }
 
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    public static class Builder {
-        private DataSource dataSource;
-        private PromptTemplate promptTemplate;
-        private String databaseStructure;
-        private ChatModel chatModel;
-        private ContentRetriever fallbackRetriever;
-        private String userId;
-
-        public Builder dataSource(DataSource dataSource) {
-            this.dataSource = dataSource;
-            return this;
-        }
-
-        public Builder promptTemplate(PromptTemplate promptTemplate) {
-            this.promptTemplate = promptTemplate;
-            return this;
-        }
-
-        public Builder databaseStructure(String databaseStructure) {
-            this.databaseStructure = databaseStructure;
-            return this;
-        }
-
-        public Builder chatModel(ChatModel chatModel) {
-            this.chatModel = chatModel;
-            return this;
-        }
-
-        public Builder fallbackRetriever(ContentRetriever fallbackRetriever) {
-            this.fallbackRetriever = fallbackRetriever;
-            return this;
-        }
-
-        public Builder userId(String userId) {
-            this.userId = userId;
-            return this;
-        }
-
-        public KnowEngineSqlDatabaseContentRetriever build() {
-            SqlDatabaseContentRetriever sqlRetriever = SqlDatabaseContentRetriever.builder()
-                    .dataSource(dataSource)
-                    .promptTemplate(promptTemplate)
-                    .databaseStructure(databaseStructure)
-                    .chatModel(chatModel)
-                    .build();
-            return new KnowEngineSqlDatabaseContentRetriever(sqlRetriever, fallbackRetriever, userId);
-        }
-    }
 }
