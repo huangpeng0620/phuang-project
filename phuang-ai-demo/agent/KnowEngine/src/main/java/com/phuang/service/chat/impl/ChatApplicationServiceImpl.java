@@ -493,6 +493,7 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
                                         .databaseStructure(databaseStructure)
                                         .chatModel(chatModel)
                                         .fallbackRetriever(embeddingRetriever)
+                                        .userId(chatParam.getUserId())
                                         .build())
                                 .progressCallback(processCallback)
                                 .build();

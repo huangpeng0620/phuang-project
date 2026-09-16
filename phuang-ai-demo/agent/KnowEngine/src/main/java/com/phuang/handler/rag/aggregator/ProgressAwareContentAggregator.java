@@ -46,7 +46,10 @@ public class ProgressAwareContentAggregator implements ContentAggregator {
     private final ChatMessageService chatMessageService;
 
     @Builder
-    public ProgressAwareContentAggregator(ContentAggregator delegate, Consumer<String> progressCallback, String assistantMessageId, ChatMessageService chatMessageService) {
+    public ProgressAwareContentAggregator(ContentAggregator delegate,
+                                          Consumer<String> progressCallback,
+                                          String assistantMessageId,
+                                          ChatMessageService chatMessageService) {
         this.chatMessageService = chatMessageService;
         this.delegate = delegate;
         this.assistantMessageId = assistantMessageId;

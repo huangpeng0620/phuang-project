@@ -28,23 +28,18 @@ import static dev.langchain4j.internal.Utils.getOrDefault;
 /**
  *
  * @description Rag 查询路由器
- * <p>
- * 基于 LLM 智能判断用户查询意图，将查询路由到最合适的内容检索器。
- * 支持三种数据源路由策略：
- * <ul>
- *   <li><b>关系型数据库 (relational_db)</b>：适用于结构化数据查询，如车辆信息、保险信息、订单信息等</li>
- *   <li><b>图数据库 (graph_db)</b>：适用于实体关系查询，如车型关系、影响链、层级结构等</li>
- *   <li><b>知识库 (knowledge_base)</b>：适用于语义相似性查询，如售前咨询、售后支持、技术问题等</li>
- * </ul>
- * <p>
- * <b>路由决策流程：</b>
- * <ol>
- *   <li>使用 LLM 分析用户查询语义</li>
- *   <li>根据预定义的 Prompt 模板判断最适合的数据源策略</li>
- *   <li>返回对应类型的 ContentRetriever 集合</li>
- * </ol>
- * <p>
+ * <P>
+ * 基于 LLM 智能判断用户查询意图，将查询路由到最合适的内容检索器,支持三种数据源路由策略:
+ *      1.关系型数据库 (relational_db): 适用于结构化数据查询，如车辆信息、保险信息、订单信息等,最终检索器: SQL
+ *      2.图数据库 (graph_db): 适用于实体关系查询，如车型关系、影响链、层级结构等,最终检索器: Neo4j
+ *      3.知识库 (knowledge_base): 适用于语义相似性查询，如售前咨询、售后支持、技术问题等,最终检索器: ES 向量 + 全文
+ * 路由决策流程:
+ *      1.用 LLM 分析用户查询语义
+ *      2.根据预定义的 Prompt 模板判断最适合的数据源策略
+ *      3.返回对应类型的 ContentRetriever 集
+ *
  * 当路由决策失败（JSON 解析异常或其他错误）时，返回全部内容检索器作为降级处理，避免直接无结果。
+ * </P>
  * @author huangpeng
  * @since 2026/9/8
  */
@@ -60,22 +55,29 @@ public class KnowEngineQueryRouter implements QueryRouter {
      */
     private final Consumer<String> progressCallback;
 
+    /**
+     * 内容检索器列表
+     */
     private final Collection<ContentRetriever> contentRetrievers;
 
     /**
-     * 确保路由进度只发送一次（DefaultRetrievalAugmentor 可能对多个 query 多次调用 route）
+     * 确保路由进度只发送一次
+     * <P>
+     *     由于问题改写流程中可能将原始问题改成多个,这样一次RAG流程中可能同一个检索器需要执行多次,因此可以避免同一个检索器发送多次进度通知
+     * </P>
      */
     private final AtomicBoolean routeProgressSent = new AtomicBoolean(false);
 
-    public KnowEngineQueryRouter(Collection<ContentRetriever> contentRetrievers, ChatModel chatModel) {
-        this(contentRetrievers, QUERY_ROUTE_PROMPT, chatModel, null);
-    }
-
-    public KnowEngineQueryRouter(Collection<ContentRetriever> contentRetrievers, ChatModel chatModel, Consumer<String> progressCallback) {
+    public KnowEngineQueryRouter(Collection<ContentRetriever> contentRetrievers,
+                                 ChatModel chatModel,
+                                 Consumer<String> progressCallback) {
         this(contentRetrievers, QUERY_ROUTE_PROMPT, chatModel, progressCallback);
     }
 
-    public KnowEngineQueryRouter(Collection<ContentRetriever> contentRetrievers, PromptTemplate promptTemplate, ChatModel chatModel, Consumer<String> progressCallback) {
+    public KnowEngineQueryRouter(Collection<ContentRetriever> contentRetrievers,
+                                 PromptTemplate promptTemplate,
+                                 ChatModel chatModel,
+                                 Consumer<String> progressCallback) {
         this.promptTemplate = getOrDefault(promptTemplate, QUERY_ROUTE_PROMPT);
         this.contentRetrievers = contentRetrievers;
         this.chatModel = chatModel;
@@ -120,7 +122,6 @@ public class KnowEngineQueryRouter implements QueryRouter {
             用户的原始查询：{{query}}
             """);
 
-
     @Override
     public Collection<ContentRetriever> route(Query query) {
         // 发送进度：开始问题路由（仅发送一次，避免多个 query 导致重复）
@@ -133,7 +134,7 @@ public class KnowEngineQueryRouter implements QueryRouter {
 
         try {
             QueryRouteResult queryRouteResult = JSON.parseObject(JsonRepairUtil.fixJson(response), QueryRouteResult.class);
-            String strategy = queryRouteResult.strategy();
+            String strategy = queryRouteResult.getStrategy();
             log.info("Route Success , query: {} , strategy: {}", query, strategy);
 
             switch (strategy) {
