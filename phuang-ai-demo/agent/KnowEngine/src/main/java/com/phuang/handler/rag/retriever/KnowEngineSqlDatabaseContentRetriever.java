@@ -54,7 +54,7 @@ public class KnowEngineSqlDatabaseContentRetriever implements ContentRetriever {
     }
 
     /**
-     * 根据数据库连接和模型配置构建 SQL 检索器。
+     * 根据数据库连接和模型配置构建 SQL 检索器
      */
     @Builder
     private KnowEngineSqlDatabaseContentRetriever(DataSource dataSource,

@@ -463,7 +463,7 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
                     //构建查询改写器
                     KnowEngineQueryTransformer knowEngineQueryTransformer = new KnowEngineQueryTransformer(chatModel, chatParam.getMessageId(), processCallback);
 
-                    // 构造查询路由器
+                    // 构建向量检索器
                     ProgressAwareContentRetriever embeddingRetriever = ProgressAwareContentRetriever.builder()
                             .delegate(KnowEngineElasticsearchContentRetriever.builder()
                                     .configuration(ElasticsearchConfigurationKnn.builder().build())
@@ -478,6 +478,7 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
                             .progressCallback(processCallback)
                             .build();
 
+                    // 构建全文检索器
                     ProgressAwareContentRetriever fullTextRetriever = ProgressAwareContentRetriever.builder()
                             .delegate(KnowEngineElasticsearchContentRetriever.builder()
                                     .configuration(ElasticsearchConfigurationFullText.builder().build())
@@ -491,11 +492,13 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
                             .progressCallback(processCallback)
                             .build();
 
+                    //构建sql数据检索器
                     ProgressAwareContentRetriever sqlRetriever = null;
                     try {
                         //构建表结构数据
                         String databaseStructure = buildDatabaseStructure();
-                        sqlRetriever = ProgressAwareContentRetriever.builder().delegate(KnowEngineSqlDatabaseContentRetriever.builder()
+                        sqlRetriever = ProgressAwareContentRetriever.builder()
+                                .delegate(KnowEngineSqlDatabaseContentRetriever.builder()
                                         .dataSource(dataSource)
                                         .promptTemplate(new PromptTemplate(textToSqlPrompt.getContentAsString(StandardCharsets.UTF_8)))
                                         .databaseStructure(databaseStructure)
@@ -509,6 +512,7 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
                         log.error("Error creating SQL retriever", e);
                     }
 
+                    //构建图数据库检索器
                     ProgressAwareContentRetriever neo4jRetriever = null;
                     try {
                         neo4jRetriever = new ProgressAwareContentRetriever(
@@ -525,9 +529,8 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
                         log.warn("Error creating Neo4j retriever", e);
                     }
 
-
                     // 构建查询路由器
-                    KnowEngineQueryRouter knowEngineQueryRouter = new KnowEngineQueryRouter(Lists.newArrayList(embeddingRetriever, fullTextRetriever, sqlRetriever),
+                    KnowEngineQueryRouter knowEngineQueryRouter = new KnowEngineQueryRouter(Lists.newArrayList(embeddingRetriever, fullTextRetriever, sqlRetriever, neo4jRetriever),
                             chatModel, processCallback);
 
                     //构造融合重排序器(ProgressAwareContentAggregator -> KnowEngineHybridContentAggregator -> KnowEngineReRankingContentAggregator)
@@ -597,7 +600,7 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
      *   数据库结构的来源:
      *     1.当前系统已存在的系统业务表结构(通过 classpath:sql/retrieve_tables.sql 维护)
      *     2.用户自定义上传的用于数据检索的动态表结构(通过 table_meta 元数据表维护 )
-     *  将两者合并作为 Text2SQL Prompt 的 databaseStructure 参数，使 LLM 感知所有可查询的表。
+     *  将两者合并作为 Text2SQL Prompt 的 databaseStructure 参数，使 LLM 感知所有可查询的表
      * </p>
      */
     private String buildDatabaseStructure() throws IOException {

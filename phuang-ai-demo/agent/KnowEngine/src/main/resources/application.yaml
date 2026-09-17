@@ -59,7 +59,6 @@ neo4j.uri: bolt://8.136.10.85:7687
 neo4j.username: neo4j
 neo4j.password: neo4j666
 
-
 # XXL-Job 配置
 xxl.job.admin.addresses: http://127.0.0.1:8080/xxl-job-admin
 xxl.job.accessToken: default_token
