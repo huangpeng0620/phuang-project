@@ -17,6 +17,7 @@
         <module>ai-framework/langchain4j</module>
         <module>ai-framework/spring-ai</module>
         <module>agent/KnowEngine</module>
+        <module>ai-framework/spring-ai-agent</module>
     </modules>
 
     <properties>
