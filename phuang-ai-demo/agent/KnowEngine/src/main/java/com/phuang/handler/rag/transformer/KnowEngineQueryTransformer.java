@@ -11,6 +11,7 @@ import dev.langchain4j.model.input.Prompt;
 import dev.langchain4j.model.input.PromptTemplate;
 import dev.langchain4j.rag.query.Query;
 import dev.langchain4j.rag.query.transformer.QueryTransformer;
+import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 
@@ -123,6 +124,7 @@ public class KnowEngineQueryTransformer implements QueryTransformer {
         this(chatModel, LG_AGENT_PROMPT, chatMessageId, null);
     }
 
+    @Builder
     public KnowEngineQueryTransformer(ChatModel chatModel, String chatMessageId, Consumer<String> progressCallback) {
         this(chatModel, LG_AGENT_PROMPT, chatMessageId, progressCallback);
     }

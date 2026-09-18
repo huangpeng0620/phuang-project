@@ -461,7 +461,11 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
                     Filter accessibleByFilter = buildFilter(chatParam);
 
                     //构建查询改写器
-                    KnowEngineQueryTransformer knowEngineQueryTransformer = new KnowEngineQueryTransformer(chatModel, chatParam.getMessageId(), processCallback);
+                    KnowEngineQueryTransformer knowEngineQueryTransformer = KnowEngineQueryTransformer.builder()
+                            .chatModel(chatModel)
+                            .chatMessageId(chatParam.getMessageId())
+                            .progressCallback(processCallback)
+                            .build();
 
                     // 构建向量检索器
                     ProgressAwareContentRetriever embeddingRetriever = ProgressAwareContentRetriever.builder()
