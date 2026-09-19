@@ -35,55 +35,64 @@ import java.util.stream.Collectors;
 import static java.util.stream.Collectors.toList;
 
 /**
- *
  * @description 自定义es内容检索器
  * <p>
- * 基于 Elasticsearch 的向量检索实现，支持以下特性：
- * <ul>
- *   <li><b>向量检索 (KNN)</b>：使用 Embedding 模型将查询文本向量化，进行相似度搜索</li>
- *   <li><b>全文检索</b>：支持 Elasticsearch 全文搜索，扩展了默认检索不支持的权限过滤功能</li>
- *   <li><b>混合检索</b>：结合向量检索和全文检索（需 Elasticsearch 相应许可证）</li>
- *   <li><b>关联内容扩展</b>：自动检索兄弟分段 (brother chunk) 和父分段 (parent chunk) 内容</li>
- * </ul>
- * <p>
- * <b>关联内容扩展机制：</b>
- * <ul>
- *   <li>兄弟分段：具有相同父分段的其他子分段，用于获取完整上下文</li>
- *   <li>父分段：从 Redis 中读取父分段的完整文本，替换子分段以获得更完整的语义</li>
- * </ul>
+ * 基于 Elasticsearch 的向量检索实现，支持以下特性:
+ *  1.向量检索 (KNN): 使用 Embedding 模型将查询文本向量化，进行相似度搜索
+ *  2.全文检索: 支持 Elasticsearch 全文搜索，扩展了默认检索不支持的权限过滤功能
+ *  3.混合检索: 结合向量检索和全文检索（需 Elasticsearch 相应许可证）
+ *  4.关联内容扩展: 自动检索父分段 (parent chunk) 内容
+ *
+ *  关联内容扩展机制(父分段): 从 Redis 中读取父分段的完整文本，替换子分段以获得更完整的语义
  * <p>
  * @see ElasticsearchContentRetriever
  * @see ContentRetriever
- * @author huangpeng
- * @since 2026/9/9
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Slf4j
 public class KnowEngineElasticsearchContentRetriever extends AbstractElasticsearchEmbeddingStore implements ContentRetriever {
 
+    /**
+     * 查询向量生成模型，用于将用户问题转换为 Embedding
+     */
     private final EmbeddingModel embeddingModel;
 
+    /**
+     * Elasticsearch 检索配置，用于确定 KNN、全文或混合检索方式
+     */
     private ElasticsearchConfiguration configuration;
 
+    /**
+     * 单次检索最多返回的内容数量
+     */
     private final int maxResults;
 
+    /**
+     * 检索结果的最低相关性分数
+     */
     private final double minScore;
 
+    /**
+     * 检索时使用的元数据过滤条件，例如文档访问权限
+     */
     private final Filter filter;
 
+    /**
+     * 知识分段服务，用于根据父分段 ID 获取并补全父分段内容
+     */
     private final KnowledgeSegmentService knowledgeSegmentService;
 
     /**
-     * 使用 Elasticsearch RestClient 创建自定义内容检索器。
+     * 使用 Elasticsearch RestClient 创建自定义内容检索器
      *
-     * @param configuration         Elasticsearch 检索配置，支持 KNN、脚本、全文、混合以及带重排的混合检索
-     * @param restClient            Elasticsearch RestClient 客户端，不能为空
-     * @param indexName             Elasticsearch 索引名称，不能为空
-     * @param embeddingModel        用于将查询文本转换为向量的 Embedding 模型
-     * @param maxResults            单次检索返回的最大结果数
-     * @param minScore              检索结果的最低相关性分数
-     * @param filter                检索时使用的元数据过滤条件
+     * @param configuration           Elasticsearch 检索配置，支持 KNN、脚本、全文、混合以及带重排的混合检索
+     * @param restClient              Elasticsearch RestClient 客户端，不能为空
+     * @param indexName               Elasticsearch 索引名称，不能为空
+     * @param embeddingModel          用于将查询文本转换为向量的 Embedding 模型
+     * @param maxResults              单次检索返回的最大结果数
+     * @param minScore                检索结果的最低相关性分数
+     * @param filter                  检索时使用的元数据过滤条件
      * @param knowledgeSegmentService 知识分段服务，用于根据父分段 ID 获取完整文本
      */
     @lombok.Builder
@@ -121,13 +130,13 @@ public class KnowEngineElasticsearchContentRetriever extends AbstractElasticsear
             // 全文检索模式: 直接执行全文搜索并返回结果
             searchContents = doFullTextQuery(query);
         } else if (configuration instanceof ElasticsearchConfigurationHybrid) {
-            // 混合检索模式: 结合向量检索和全文检索
+            // 混合检索模式: 结合向量检索和全文检索(需得到付费许可)
             searchContents = mapResultsToContentList(this.hybridSearch(request, query.text()));
         } else {
             // 向量检索模式
             searchContents = mapResultsToContentList(this.search(request));
         }
-        return proccessParentContent(searchContents);
+        return processParentContent(searchContents);
     }
 
     /**
@@ -136,7 +145,7 @@ public class KnowEngineElasticsearchContentRetriever extends AbstractElasticsear
      * @return
      */
     @NotNull
-    private List<Content> proccessParentContent(List<Content> searchContents) {
+    private List<Content> processParentContent(List<Content> searchContents) {
         // 去重并按文本内容排序
         searchContents = searchContents.stream().distinct().sorted(Comparator.comparing(content -> content.textSegment().text())).toList();
         List<Content> finalContents = Lists.newArrayList(searchContents);

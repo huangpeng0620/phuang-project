@@ -46,7 +46,7 @@ public class ElasticsearchIndexInitializer {
             restClient.performRequest(createIndexRequest);
             log.info("Elasticsearch 索引创建成功: {}, dimensions: {}", indexName, dimensions);
         } catch (ResponseException e) {
-            // 多实例可能同时通过存在性检查；若另一实例已成功创建，则直接复用。
+            // 多实例可能同时通过存在性检查；若另一实例已成功创建，则直接复用
             if (indexExistsAfterConcurrentCreate(indexName)) {
                 log.info("Elasticsearch 索引已由其他实例创建，直接复用: {}", indexName);
                 return;
