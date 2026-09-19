@@ -66,7 +66,7 @@ public class KnowEngineQueryTransformer implements QueryTransformer {
     private final String chatMessageId;
 
     /**
-     * 进度回调，用于流式返回前端进度信息
+     * 进度回调,用于流式返回前端进度信息
      */
     private final Consumer<String> progressCallback;
 
@@ -137,17 +137,32 @@ public class KnowEngineQueryTransformer implements QueryTransformer {
     }
 
     private static final PromptTemplate LG_AGENT_PROMPT = PromptTemplate.from("""
-            你是一个汽车智能客服助手，你的职责范围是汽车相关的咨询场景，包括购车咨询、车型信息、保养维修、保险年检、售后服务等。你需要对用户的问题进行改写，使得改写后的问题在查询向量数据库/关系型数据库/图数据库时有更好的结果，并删除任何无关信息，确保查询简洁明了、具体明确。下面有一些改写的策略。
+            你是一个汽车智能客服助手，职责范围包括购车咨询、车型信息、保养维修、保险年检、售后服务等汽车相关咨询场景。
             
-            1、简洁改写。问题可能比较长，包含了一些无意义的语气词、修饰词或者重复的词语等。尤其是问题在询问车型配置、价格政策时，且包含一些无意义的日期、编号等修饰词。改写规则：删除无意义的词语使其更适合搜索引擎检索，疑问句要转成陈述句。
-            2、抽象概念改写。前提：用户的问题一定在询问汽车相关的问题，且是一些比较具体的细节问题，比如"我的车每次踩刹车的时候都有吱吱吱的声音很吵怎么办"。需要改写成类似"车辆刹车异响故障排查"，将具体的问题转化为更基础、更简洁、更抽象的问题。
-            3、错别字改写。用户的问题包含了错别字或者是一些常见的汽车术语用户打成了对应的拼音。大小写不一样不属于错别字。错别字需要给出纠正结果。
-            4、车型信息提取。如果用户提到了具体的车型信息（品牌、型号、年款等），需要将其标准化提取。比如"特斯拉毛豆3"改写为"Tesla Model 3"，"比亚迪汉"保持不变。
-            5、结合历史对话和最新提问，识别出所有相关的细节、术语和上下文信息。最后，将这条提问重新组织成一个清晰、简洁且独立完整的格式，以便于进行信息检索。
+            ## 任务
             
-            上面是5种改写策略，需要逐一使用最终给出一个统一的改写结果。直接输出改写后的结果，不需要输出思考过程及额外的多余内容。如果不需要改写，则直接输出原问题即可。
+            对用户问题进行改写，使改写后的问题更适合查询向量数据库、关系型数据库和图数据库，从而获得更好的检索结果。改写时删除无关信息，确保最终问题简洁明了、具体明确，并且能够脱离历史对话独立表达完整含义。
             
-            ### 示例
+            ## 改写策略
+            
+            请逐一检查并应用以下5种策略，最终合并为一个统一的改写结果：
+            
+            1. 简洁改写
+               用户问题可能较长，包含无意义的语气词、修饰词或重复词语。尤其是在询问车型配置、价格政策时，可能包含无意义的日期、编号等修饰信息。删除这些无意义内容，使问题更适合检索；将疑问句改写为陈述句。
+            
+            2. 抽象概念改写
+               用户询问的一定是汽车相关问题。当问题描述的是具体细节时，将其转化为更基础、更简洁、更抽象的检索表述。例如，将“我的车每次踩刹车的时候都有吱吱吱的声音很吵怎么办”改写为“车辆刹车异响故障排查”。
+            
+            3. 错别字改写
+               纠正用户问题中的错别字，以及被输入为对应拼音的常见汽车术语。仅大小写不同不属于错别字。
+            
+            4. 车型信息提取
+               如果用户提到具体车型信息，包括品牌、型号、年款等，对其进行标准化提取。例如，将“特斯拉毛豆3”改写为“Tesla Model 3”；“比亚迪汉”保持不变。
+            
+            5. 上下文补全
+               结合历史对话和最新提问，识别所有相关的细节、术语和上下文信息，将最新提问重新组织为清晰、简洁、独立完整且适合信息检索的问题。
+            
+            ## 示例
             
             Input：我如果想买一辆特斯拉Model 3的话，大概需要多少钱啊
             Output：Tesla Model 3官方指导价
@@ -170,20 +185,25 @@ public class KnowEngineQueryTransformer implements QueryTransformer {
             Input：我想了解一下你们那款新出的电动车的配置
             Output：新款电动车车型配置参数
             
+            ## 输入
+            
             ### 历史对话内容
             {{chatMemory}}
             
             ### 用户问题：
-            
             {{query}}
             
-            ### 要求：
-            非常重要的一点是：你只需要提供重新组织后的提问，不要包含任何其他内容！绝对不要在提问前添加任何多余的文字！
+            ## 输出要求
+            
+            - 只执行问题改写，不要回答用户问题。
+            - 只输出最终统一的改写结果，不要输出思考过程、解释、标签或任何其他内容。
+            - 不要在改写结果前后添加多余文字。
+            - 如果不需要改写，原样输出用户问题。
             """);
 
     @Override
     public Collection<Query> transform(Query query) {
-        // 发送进度：开始问题改写
+        // 发送进度事件通知
         if (Objects.nonNull(progressCallback)) {
             progressCallback.accept("[PROGRESS]:正在优化您的问题...");
             log.info("[PROGRESS]:正在优化您的问题...");
@@ -198,13 +218,13 @@ public class KnowEngineQueryTransformer implements QueryTransformer {
         // 异步回写改写结果到 chat_message
         if (Objects.nonNull(chatMessageId)) {
             ChatMessageService chatMessageService = getChatMessageService();
-            if (chatMessageService != null) {
+            if (Objects.nonNull(chatMessageService)) {
                 Thread.ofVirtual().name("query-transform-" + chatMessageId).start(() -> {
                     try {
                         chatMessageService.updateTransformContent(chatMessageId, newQuery);
-                        log.info("改写结果已回写: assistantMsgId={}, transformContent={}", chatMessageId, newQuery);
+                        log.info("改写结果已回写: assistantMsgId:{}, transformContent:{}", chatMessageId, newQuery);
                     } catch (Exception e) {
-                        log.error("改写结果回写失败: assistantMsgId={}", chatMessageId, e);
+                        log.error("改写结果回写失败: assistantMsgId:{}", chatMessageId, e);
                     }
                 });
             }
@@ -220,9 +240,9 @@ public class KnowEngineQueryTransformer implements QueryTransformer {
     }
 
     /**
-     * 填充 LG_AGENT_PROMPT 提示词模版中的 query 和 chatMemory 参数
-     * @param query
-     * @param chatMemory
+     * 填充提示词模版中的 query 和 chatMemory 参数
+     * @param query      用户查询
+     * @param chatMemory 对话记忆
      * @return
      */
     protected Prompt createPrompt(Query query, String chatMemory) {
