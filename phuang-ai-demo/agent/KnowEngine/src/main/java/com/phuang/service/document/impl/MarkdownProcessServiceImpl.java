@@ -145,7 +145,10 @@ public class MarkdownProcessServiceImpl implements FileProcessService {
      * 需要注意的是，如果你用的是外部的模型，这个url需要是公网可以访问的url。否则模型需要能和MinIO进行内网通信。
      */
     public String generateImageDescription(String imageUrl) {
-        UserMessage userMessage = UserMessage.from(new TextContent("请描述这张图片的内容，包括场景、对象、布局、颜色、文字信息，直接输出纯文本描述，不要多余说明，不要增加任何特殊符号，特别是换行符"), new ImageContent(imageUrl));
+        UserMessage userMessage = UserMessage.from(new TextContent("""
+                        请描述这张图片的内容，包括场景、对象、布局、颜色、文字信息，直接输出纯文本描述，不要多余说明，不要增加任何特殊符号，特别是换行符
+                        """),
+                new ImageContent(imageUrl));
         return chatModel.chat(userMessage)
                 .aiMessage()
                 .text();

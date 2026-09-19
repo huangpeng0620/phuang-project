@@ -534,7 +534,11 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
                     }
 
                     // 构建查询路由器
-                    KnowEngineQueryRouter knowEngineQueryRouter = new KnowEngineQueryRouter(Lists.newArrayList(embeddingRetriever, fullTextRetriever, sqlRetriever, neo4jRetriever),
+                    KnowEngineQueryRouter knowEngineQueryRouter = new KnowEngineQueryRouter(Lists.newArrayList(
+                            embeddingRetriever,
+                            fullTextRetriever,
+                            sqlRetriever,
+                            neo4jRetriever),
                             chatModel, processCallback);
 
                     //构造融合重排序器(ProgressAwareContentAggregator -> KnowEngineHybridContentAggregator -> KnowEngineReRankingContentAggregator)

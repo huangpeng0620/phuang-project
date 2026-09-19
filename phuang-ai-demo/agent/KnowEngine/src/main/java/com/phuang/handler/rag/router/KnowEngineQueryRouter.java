@@ -129,10 +129,10 @@ public class KnowEngineQueryRouter implements QueryRouter {
             progressCallback.accept("[PROGRESS]:正在路由您的问题...");
             log.info("[PROGRESS]:正在路由您的问题...");
         }
-        // 请求 LLM 获取路由结果
-        String response = chatModel.chat(createPrompt(query).text());
-
+        String response = "";
         try {
+            // 请求 LLM 获取路由结果
+            response = chatModel.chat(createPrompt(query).text());
             QueryRouteResult queryRouteResult = JSON.parseObject(JsonRepairUtil.fixJson(response), QueryRouteResult.class);
             String strategy = queryRouteResult.getStrategy();
             log.info("Route Success , query: {} , strategy: {}", query, strategy);
