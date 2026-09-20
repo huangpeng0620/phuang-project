@@ -75,6 +75,13 @@ public class Neo4jKnowledgeGraphWriter {
         }
         Long versionId = segment.getDocumentVersion();
         try (Session session = driver.session()) {
+            /**
+             * 每个分段单独一个 Neo4j 写事务
+             * <P>
+             *   因此一个分段写失败，只会让当前构图任务失败，前面已经写成功的分段还在 Neo4j 中,后续重新构建时,
+             * startVersion 会先清理该版本旧的 KGFact 和 KGChunk，所以可以从头重建;
+             * </P>
+             */
             session.executeWrite(tx -> {
                 tx.run("""
                         MATCH (v:KGVersion {versionId: $versionId})
