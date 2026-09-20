@@ -22,6 +22,7 @@ import com.phuang.model.enums.SegmentStatus;
 import com.phuang.model.exception.BusinessException;
 import com.phuang.service.*;
 import com.phuang.service.document.DocumentProcessService;
+import com.phuang.service.graph.GraphBuildService;
 import com.phuang.service.impl.FileStorageService;
 import com.phuang.util.FileTypeUtil;
 import com.phuang.util.MinioObjectNameUtil;
@@ -37,6 +38,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.Assert;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -76,6 +79,14 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
 
     @Resource
     private ApplicationEventPublisher eventPublisher;
+
+    /** 在保存分段的同一 MySQL 事务中登记图谱任务，避免事件早于数据提交。 */
+    @Resource
+    private GraphBuildService graphBuildService;
+
+    /** 用现有数据源事务管理器只包裹分段持久化；MinIO 下载和文本切分保持在事务之外。 */
+    @Resource
+    private PlatformTransactionManager transactionManager;
 
     @Value("${minio.bucketName}")
     private String bucketName;
@@ -314,16 +325,21 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
             }
             knowledgeSegmentEntityList.add(knowledgeSegmentEntity);
         }
-        knowledgeSegmentService.saveBatch(knowledgeSegmentEntityList);
+        // 分段、文档状态和构图任务必须一起提交；事务内发布的事件只在提交后触发监听器
+        return new TransactionTemplate(transactionManager).execute(status -> {
+            //保存文档分段
+            knowledgeSegmentService.saveBatch(knowledgeSegmentEntityList);
 
-        //更新文档状态至【分块完成】
-        knowledgeDocumentService.advanceDocumentAndVersionStatus(documentEntity.getDocId(), documentEntity.getCurrentVersionId(), DocumentStatus.CHUNKED);
+            //更新文档状态至【分块完成】
+            knowledgeDocumentService.advanceDocumentAndVersionStatus(documentEntity.getDocId(), documentEntity.getCurrentVersionId(), DocumentStatus.CHUNKED);
 
-        //发送文档已分段事件
-        DocumentChunkedEvent event = new DocumentChunkedEvent(this, documentEntity.getDocId(), documentEntity.getCurrentVersionId(), knowledgeSegmentEntityList.size());
-        eventPublisher.publishEvent(event);
+            //新建图谱构建任务
+            graphBuildService.enqueue(documentEntity.getDocId(), documentEntity.getCurrentVersionId());
 
-        return knowledgeSegmentEntityList.size();
+            //发送文档已分段事件
+            eventPublisher.publishEvent(new DocumentChunkedEvent(this, documentEntity.getDocId(), documentEntity.getCurrentVersionId(), knowledgeSegmentEntityList.size()));
+            return knowledgeSegmentEntityList.size();
+        });
     }
 
     /**

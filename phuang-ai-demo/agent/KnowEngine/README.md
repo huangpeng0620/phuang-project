@@ -13,6 +13,7 @@ KnowEngine 是一个基于 Spring Boot 和 LangChain4j 的知识文档处理服�
 - 使用 DashScope 兼容接口生成文本向量
 - 将向量和元数据写入 Elasticsearch
 - 文档版本上传、激活和切换
+- 手动切分 `DOCUMENT_SEARCH` 文档后，异步抽取汽车事实写入 Neo4j
 - 基于 Spring 事务事件的异步向量化
 - 通过 XXL-Job 补偿失败的向量化及旧版本清理任务
 - 使用 MySQL 保存文档、版本和分段信息，使用 MinIO 保存原始及转换后的文件
@@ -32,15 +33,16 @@ KnowEngine 是一个基于 Spring Boot 和 LangChain4j 的知识文档处理服�
           └── 其他类型 ─> 保留原始文件
                                   │
                                   v
-                           手动触发文档切分
+                          手动调用 /split 切分
                                   │
-                                  v
-                         事务提交后异步向量化
+                       MySQL 保存分段和构图任务
                                   │
                     ┌─────────────┴─────────────┐
                     v                           v
-                  MySQL                    Elasticsearch
-                分段及状态                    文本向量
+             异步向量化                   异步抽取汽车事实
+                    │                           │
+                    v                           v
+              Elasticsearch                   Neo4j
 ```
 
 文档搜索类型的典型状态流转如下：
@@ -135,6 +137,9 @@ mysql -u <username> -p know_engine < src/main/resources/sql/tables.sql
 - `knowledge_document`：文档主记录
 - `knowledge_document_version`：文档版本快照
 - `knowledge_segment`：文档分段及向量关联信息
+- `graph_build_task`：每个文档版本的图谱构建状态
+
+已有业务库但尚无该表时，执行 `src/main/resources/sql/migrations/graph_build_task.sql`，不要重放整个 `tables.sql`。如果已按旧版脚本建立了包含 `attempts`、`next_retry_at` 的表，再执行一次 `src/main/resources/sql/migrations/graph_build_task_remove_retry_columns.sql`。
 
 ### 3. 配置运行环境
 
@@ -251,14 +256,14 @@ curl -X POST 'http://localhost:10001/api/document/upload' \
 
 ### 切分文档
 
-上传和转换完成后，可手动触发切分：
+`DOCUMENT_SEARCH` 上传或上传新版本并转换完成后，保持 `CONVERTED` 状态，等待用户调用切分接口。切分策略和块大小由接口参数指定：
 
 ```bash
 curl -X POST \
-  'http://localhost:10001/api/document/split/1?splitType=SMART&chunkSize=500&overlap=50'
+  'http://localhost:10001/api/document/split?documentId=1&splitType=SMART&chunkSize=500&overlap=50'
 ```
 
-切分事务提交后，服务会异步生成向量并写入 Elasticsearch。
+切分事务提交后，服务会分别异步生成 ES 向量和 Neo4j 图谱。图谱失败不会改变文档或向量状态。
 
 | `splitType` | 说明 | 额外参数 |
 | --- | --- | --- |
@@ -317,6 +322,16 @@ curl -X POST \
 | --- | --- |
 | `documentEmbeddingCompensation` | 扫描停留在 `CHUNKED` 状态的版本并重试向量化 |
 | `retryFailedCleanups` | 清理文档版本切换后残留的向量数据 |
+| `documentGraphBuild` | 扫描尚未执行的 `PENDING` 图谱任务；可定期运行 |
+| `documentGraphBackfill` | 为历史已切分的当前版本补登图谱任务；迁移后按需运行 |
+
+## Neo4j 文档图谱
+
+执行上述 MySQL 增量脚本并保证应用使用的 Neo4j 账号可创建唯一约束和写入节点后，构图任务会在首次运行时创建 `KGDocument`、`KGVersion`、`KGChunk`、`KGEntity`、`KGFact` 的唯一约束。分段正文仍以 MySQL 为准；Neo4j 保存实体、事实和来源分段 ID。事实的 `SUBJECT`、`OBJECT`、`SUPPORTED_BY` 关系可从版本追溯到原文。只有 `KGVersion.state=READY` 表示整个版本已构建完成。
+
+每个 `DOCUMENT_SEARCH` 版本在 `graph_build_task` 中只有一条任务。`PENDING` 表示等待构建，`RUNNING` 表示处理中，`SUCCEEDED` 表示图谱就绪，`FAILED` 表示失败。定时任务只补处理 `PENDING`；`FAILED` 或异常中断后停留在 `RUNNING` 的任务不会自动重试，排查后可手动把 `status` 设回 `PENDING`。新版本单独构建，旧版本图谱保留；本次实现只建设图谱数据，问答阶段尚未使用这些新节点。
+
+抽取器只接受固定汽车实体和关系类型，并要求每条事实附有当前分段中的连续原文。模型输出格式错误会将任务标记为 `FAILED`，单条缺少证据或不符合类型白名单的事实会被丢弃。`graph_build_task.last_error` 仅记录失败的异常类型，不存储文档正文。
 
 ## 开发说明
 

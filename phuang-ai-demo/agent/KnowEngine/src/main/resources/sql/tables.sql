@@ -43,7 +43,7 @@ create TABLE `knowledge_document_version` (
     INDEX `idx_doc_id` (`doc_id`),
     -- 内容哈希索引，用于跨版本去重
     INDEX `idx_content_hash` (`content_hash`)
-)  ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_cicomment = '文档版本表';
+)  ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT = '文档版本表';
 
 -- 知识片段表
 create TABLE `knowledge_segment` (
@@ -73,6 +73,19 @@ create TABLE `knowledge_segment` (
     -- 状态索引，优化按状态查询
     INDEX `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='知识片段表';
+
+-- 文档图谱构建任务；新安装直接使用本表，已有安装执行 migrations/graph_build_task.sql。
+CREATE TABLE IF NOT EXISTS `graph_build_task` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '任务ID',
+    `document_id` BIGINT NOT NULL COMMENT '知识文档ID',
+    `version_id` BIGINT NOT NULL COMMENT '知识文档版本ID',
+    `status` VARCHAR(16) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING/RUNNING/SUCCEEDED/FAILED',
+    `last_error` VARCHAR(1024) NULL COMMENT '最近一次失败的异常类型',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最近状态变更时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_graph_version` (`version_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文档图谱构建任务';
 
 -- 表元数据表（存储动态创建的表的元数据信息）
 create TABLE `table_meta` (

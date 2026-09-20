@@ -18,8 +18,10 @@ tika.max-text-length: 5000000
 langchain4j.open-ai.chat-model.api-key: @dashscope.api.key@
 langchain4j.open-ai.chat-model.model-name: deepseek-r1
 langchain4j.open-ai.chat-model.base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-langchain4j.open-ai.chat-model.log-requests: true
-langchain4j.open-ai.chat-model.log-responses: true
+
+# 内部汽车资料会进入模型请求，关闭请求/响应正文日志，避免资料被复制到应用日志。
+langchain4j.open-ai.chat-model.log-requests: false
+langchain4j.open-ai.chat-model.log-responses: false
 
 langchain4j.open-ai.streaming-chat-model.api-key: @dashscope.api.key@
 langchain4j.open-ai.streaming-chat-model.model-name: deepseek-r1
@@ -91,5 +93,4 @@ sa-token.token-style: uuid # token 风格（uuid）
 sa-token.is-log: false # 是否输出操作日志
 sa-token.is-read-cookie: true # 是否从 cookie 中读取 token
 sa-token.is-read-header: true # 是否从 header 中读取 token
-
 

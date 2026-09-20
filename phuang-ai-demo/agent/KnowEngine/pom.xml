@@ -205,6 +205,19 @@
     </dependencies>
 
     <build>
+        <resources>
+            <!-- 父 POM 会过滤全部资源；ONNX 是二进制文件，必须原样复制，否则 Maven 会按文本解码失败。 -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <excludes><exclude>**/*.onnx</exclude></excludes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <includes><include>**/*.onnx</include></includes>
+            </resource>
+        </resources>
         <plugins>
             <!--启用 Spring Boot Maven 插件，把普通 JAR 重新打包成包含依赖、可通过 java -jar 启动的 Spring Boot 可执行 JAR-->
             <plugin>
