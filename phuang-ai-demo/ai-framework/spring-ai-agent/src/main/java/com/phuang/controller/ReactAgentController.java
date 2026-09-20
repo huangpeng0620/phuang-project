@@ -21,6 +21,7 @@ import org.springframework.ai.model.tool.ToolExecutionResult;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -38,14 +39,14 @@ public class ReactAgentController {
     @Resource
     private ChatMemory chatMemory;
 
-    @Resource
-    private ChatModel chatModel;
+    @Resource(name = "deepSeekR1ChatModel")
+    private ChatModel deepSeekR1ChatModel;
 
     @Resource
     private ToolCallingManager toolCallingManager;
 
     @GetMapping("/chat")
-    public String chat(String conversationId) {
+    public String chat(@RequestParam("conversationId") String conversationId) {
         //定义ChatOptions
         ChatOptions chatOptions = ToolCallingChatOptions.builder()
                 //指定工具
@@ -71,7 +72,7 @@ public class ReactAgentController {
         Prompt promptWithMemory = new Prompt(chatMemory.get(conversationId), chatOptions);
 
         //调用模型
-        ChatResponse chatResponse = chatModel.call(promptWithMemory);
+        ChatResponse chatResponse = deepSeekR1ChatModel.call(promptWithMemory);
 
         //添加模型返回结果到记忆
         chatMemory.add(conversationId, chatResponse.getResult().getOutput());
@@ -90,7 +91,7 @@ public class ReactAgentController {
             promptWithMemory = new Prompt(chatMemory.get(conversationId), chatOptions);
 
             //调用模型
-            chatResponse = chatModel.call(promptWithMemory);
+            chatResponse = deepSeekR1ChatModel.call(promptWithMemory);
 
             //添加模型返回结果到记忆
             chatMemory.add(conversationId, chatResponse.getResult().getOutput());
@@ -103,8 +104,8 @@ public class ReactAgentController {
         return chatResponse.getResult().getOutput().getText();
     }
 
-    @GetMapping("/chat1")
-    public String chat1(String conversationId) throws GraphRunnerException {
+    @GetMapping("/chatV2")
+    public String chatV2(@RequestParam("conversationId") String conversationId) throws GraphRunnerException {
         String systemPrompt = String.format("""
                 你是一个基于React架构（Reasoning-Act-Observation）的智能助手，你擅长使用工具帮我解决问题，你的工作流程是：
                 1、思考：先根据用户的提问进行思考，推理出下一步需要进行的具体系统
@@ -114,7 +115,7 @@ public class ReactAgentController {
 
         ReactAgent agent = ReactAgent.builder()
                 .name("executor")
-                .model(chatModel)
+                .model(deepSeekR1ChatModel)
                 .tools(ToolCallbacks.from(new StockTools()))
                 .systemPrompt(systemPrompt)
                 .saver(new MemorySaver())
