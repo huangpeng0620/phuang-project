@@ -7,6 +7,8 @@ import com.alibaba.fastjson2.JSONObject;
 import com.phuang.model.entity.KnowledgeSegmentEntity;
 import dev.langchain4j.model.chat.ChatModel;
 import jakarta.annotation.Resource;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -20,14 +22,35 @@ import java.util.Set;
  * 从一个已保存的文档分段中抽取汽车领域事实。
  * 模型只负责提出候选事实；此类负责限制实体类型、关系类型并核对原文证据，
  * 避免模型输出直接成为图数据库中的任意节点或写入语句。
+ * <P>
+ *     不让 LLM 直接决定图谱结构，而是让 LLM 只产出候选，再用白名单、类型校验、单位校验、原文证据校验把结果收紧
+ * </P>
  */
 @Component
 public class GraphFactExtractor {
 
-    /** 实体类型白名单，保持首版图谱的词汇和查询结构稳定。 */
+    /**
+     * 允许的实体类型白名单:
+     * BRAND	汽车品牌	       比亚迪、宝马
+     * SERIES	车系	           宝马3系、秦PLUS
+     * VEHICLE	具体车型	       2026款 Model Y 长续航版
+     * PART	    零部件	       刀片电池、发动机
+     * FEATURE	功能/配置	   自动泊车、HUD
+     * ENERGY	能源类型	       纯电、插混
+     * POLICY	政策/规则	   三电终身质保政策
+     * COMPANY	公司	           宁德时代
+     *
+     * 模型写出其他类型，事实会被丢弃
+     */
     private static final Set<String> ENTITY_TYPES = Set.of("BRAND", "SERIES", "VEHICLE", "PART", "FEATURE", "ENERGY", "POLICY", "COMPANY");
 
-    /** 数值事实仅接受明确的指标和单位，避免把不同量纲合并。 */
+    /**
+     * 三种数值事实:
+     *     GUIDE_PRICE        指导价
+     *     RANGE_KM           续航里程
+     *     WARRANTY_MONTHS    质保月数
+     * 命中它们时走数值校验分支，而不是“主体—客体”关系分支
+     */
     private static final Set<String> VALUE_PREDICATES = Set.of("GUIDE_PRICE", "RANGE_KM", "WARRANTY_MONTHS");
 
     /** 复用项目已有的对话模型，不为抽取额外引入模型客户端。 */
@@ -159,13 +182,45 @@ public class GraphFactExtractor {
      */
     private static boolean validRelationship(String subject, String predicate, String object) {
         return switch (predicate) {
+
+            /**
+             * HAS_SERIES：品牌拥有车系，例如「宝马」-拥有车系->「3系」
+             */
             case "HAS_SERIES" -> subject.equals("BRAND") && object.equals("SERIES");
+
+            /**
+             * HAS_VEHICLE：车系拥有具体车型，例如「宝马3系」-拥有车型->「325Li M运动套装」
+             */
             case "HAS_VEHICLE" -> subject.equals("SERIES") && object.equals("VEHICLE");
+
+            /**
+             * USES_PART：车型使用零部件，例如「某车型」-使用零部件->「8155芯片」
+             */
             case "USES_PART" -> subject.equals("VEHICLE") && object.equals("PART");
+
+            /**
+             * HAS_FEATURE：车型拥有配置/功能，例如「某车型」-拥有功能->「L2辅助驾驶」
+             */
             case "HAS_FEATURE" -> subject.equals("VEHICLE") && object.equals("FEATURE");
+
+            /**
+             * HAS_ENERGY_TYPE：车型使用能源类型，例如「某车型」-能源类型->「纯电」
+             */
             case "HAS_ENERGY_TYPE" -> subject.equals("VEHICLE") && object.equals("ENERGY");
+
+            /**
+             * APPLIES_TO：政策适用于品牌/车系/车型，例如「置换补贴政策」-适用于->「宝马3系」
+             */
             case "APPLIES_TO" -> subject.equals("POLICY") && Set.of("BRAND", "SERIES", "VEHICLE").contains(object);
+
+            /**
+             * SUPPLIED_BY：零部件由某公司供应，例如「电池包」-供应商->「宁德时代」
+             */
             case "SUPPLIED_BY" -> subject.equals("PART") && object.equals("COMPANY");
+
+            /**
+             * REPLACES：车型换代/替代另一个车型，例如「新款车型」-替代->「老款车型」
+             */
             case "REPLACES" -> subject.equals("VEHICLE") && object.equals("VEHICLE");
             default -> false;
         };
@@ -213,21 +268,114 @@ public class GraphFactExtractor {
         return text == null ? null : text.trim().toUpperCase(Locale.ROOT);
     }
 
-    /** 图中的共享实体；key 由类型和规范化名称决定，不采用模型提供的任意 ID。 */
-    public record Entity(String type, String name) {
-        /** 返回可复现的实体键，兼容中英文全角字符与空白差异。 */
+    /**
+     * 表示图谱里的【实体节点】,也就是图上的点, 比如品牌、车系、车型、零部件、配置、政策、公司等
+     */
+    @Data
+    @AllArgsConstructor
+    public static class Entity {
+
+        /**
+         * 图中的实体类型，必须来自实体白名单,例如: VEHICLE、BRAND、PART
+         */
+        private String type;
+
+        /**
+         * 实体名称来自文档原文或 LLM 抽取结果,例如: 宝马3系、8155芯片
+         */
+        private String name;
+
+        /**
+         * 返回可复现的实体键，兼容中英文全角字符与空白差异
+         * @return
+         */
         public String key() {
             return type + ":" + Normalizer.normalize(name, Normalizer.Form.NFKC)
                     .replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
         }
     }
 
-    /** 年款、配置、地区和有效期作为事实限定条件，避免覆盖不同适用范围的说法。 */
-    public record Qualifiers(String modelYear, String trim, String region, String validFrom, String validTo) {
+    /**
+     * 表示一条事实的【限定条件】,它不是图上的主体或客体，而是用来说明这条事实在什么范围内成立
+     *
+     * <P>
+     *     为什么需要它？因为汽车资料里很多事实不是永远成立的, 比如“指导价 26.39 万”可能只适用于：2026款、长续航版、中国大陆、2026-01-01 起
+     *     如果不存这些限定条件，图谱里就只剩“某车型指导价 26.39 万”，后续检索时容易把不同年款、不同地区、不同配置混在一起
+     * </P>
+     */
+    @Data
+    @AllArgsConstructor
+    public static class Qualifiers {
+
+        /**
+         * 年款,例如: 2026款
+         */
+        private String modelYear;
+
+        /**
+         * 配置/版本,例如:长续航版、M运动套装
+         */
+        private String trim;
+
+        /**
+         * 地区,例如: 中国大陆、华东区
+         */
+        private String region;
+
+        /**
+         * 生效开始时间,例如: 2026-01-01
+         */
+        private String validFrom;
+
+        /**
+         * 生效结束时间,例如: 2026-12-31
+         */
+        private String validTo;
     }
 
-    /** 一条经原文核验的汽车事实；object 与 value 恰有一个非空。 */
-    public record Fact(Entity subject, String predicate, Entity object, BigDecimal value,
-                       String unit, Qualifiers qualifiers, String evidence) {
+    /**
+     * Fact 表示一条最终通过校验、准备写入图谱的【事实】,它可以是两类:
+     *             1. 实体关系事实：主体 -> 关系 -> 客体
+     *             2. 数值事实：   主体 -> 指标 -> 数值
+     *  object 与 value 恰好有个非空
+     */
+    @Data
+    @AllArgsConstructor
+    public static class Fact {
+
+        /**
+         * 主体实体,例如: 宝马、宝马3系、某款车型
+         */
+        private Entity subject;
+
+        /**
+         * 关系名或数值属性名, 例如: HAS_SERIES、HAS_FEATURE、RANGE_KM
+         */
+        private String predicate;
+
+        /**
+         * 客体实体,关系事实才有, 例如: 宝马3系、8155芯片
+         */
+        private Entity object;
+
+        /**
+         * 数值，数值事实才有, 例如: 750、263900
+         */
+        private BigDecimal value;
+
+        /**
+         * 单位，数值事实才有, 例如: KM、CNY、MONTH
+         */
+        private String unit;
+
+        /**
+         * 限定条件，比如年款、配置、地区、生效时间
+         */
+        private Qualifiers qualifiers;
+
+        /**
+         * 原文证据，必须是文档分段里的连续原文
+         */
+        private String evidence;
     }
 }

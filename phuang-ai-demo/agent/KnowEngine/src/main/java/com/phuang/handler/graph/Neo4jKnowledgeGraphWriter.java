@@ -94,7 +94,7 @@ public class Neo4jKnowledgeGraphWriter {
                                 f.qualifiers = $qualifiers, f.value = $value, f.unit = $unit
                             MERGE (f)-[:SUBJECT]->(s)
                             """, params).consume();
-                    if (fact.object() != null) {
+                    if (fact.getObject() != null) {
                         tx.run("""
                                 MATCH (f:KGFact {factId: $factId})
                                 MERGE (o:KGEntity {entityKey: $objectKey})
@@ -163,26 +163,26 @@ public class Neo4jKnowledgeGraphWriter {
      * 版本 ID 则必须包含在内，以便版本切换和失败重建时互不覆盖。
      */
     private static Map<String, Object> factParams(Long versionId, Long segmentId, GraphFactExtractor.Fact fact) {
-        String qualifiers = JSON.toJSONString(fact.qualifiers());
-        String objectKey = fact.object() == null ? "" : fact.object().key();
-        String value = fact.value() == null ? "" : fact.value().stripTrailingZeros().toPlainString();
-        String identity = versionId + "|" + fact.subject().key() + "|" + fact.predicate()
-                + "|" + objectKey + "|" + value + "|" + fact.unit() + "|" + qualifiers;
+        String qualifiers = JSON.toJSONString(fact.getQualifiers());
+        String objectKey = fact.getObject() == null ? "" : fact.getObject().key();
+        String value = fact.getValue() == null ? "" : fact.getValue().stripTrailingZeros().toPlainString();
+        String identity = versionId + "|" + fact.getSubject().key() + "|" + fact.getPredicate()
+                + "|" + objectKey + "|" + value + "|" + fact.getUnit() + "|" + qualifiers;
         Map<String, Object> params = new HashMap<>();
         params.put("factId", sha256(identity));
         params.put("versionId", versionId);
         params.put("segmentId", segmentId);
-        params.put("subjectKey", fact.subject().key());
-        params.put("subjectName", fact.subject().name());
-        params.put("subjectType", fact.subject().type());
-        params.put("predicate", fact.predicate());
+        params.put("subjectKey", fact.getSubject().key());
+        params.put("subjectName", fact.getSubject().getName());
+        params.put("subjectType", fact.getSubject().getType());
+        params.put("predicate", fact.getPredicate());
         params.put("objectKey", objectKey);
-        params.put("objectName", fact.object() == null ? null : fact.object().name());
-        params.put("objectType", fact.object() == null ? null : fact.object().type());
-        params.put("value", fact.value() == null ? null : fact.value().doubleValue());
-        params.put("unit", fact.unit());
+        params.put("objectName", fact.getObject() == null ? null : fact.getObject().getName());
+        params.put("objectType", fact.getObject() == null ? null : fact.getObject().getType());
+        params.put("value", fact.getValue() == null ? null : fact.getValue().doubleValue());
+        params.put("unit", fact.getUnit());
         params.put("qualifiers", qualifiers);
-        params.put("evidence", fact.evidence());
+        params.put("evidence", fact.getEvidence());
         return params;
     }
 
