@@ -10,6 +10,7 @@ import dev.langchain4j.rag.content.aggregator.DefaultContentAggregator;
 import dev.langchain4j.rag.content.aggregator.ReRankingContentAggregator;
 import dev.langchain4j.rag.content.aggregator.ReciprocalRankFuser;
 import dev.langchain4j.rag.query.Query;
+import lombok.Builder;
 
 import java.util.*;
 import java.util.function.Function;
@@ -74,15 +75,6 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
     private final Integer maxResults;
 
     /**
-     * 创建仅指定评分模型的聚合器，使用默认查询选择器，不限制最低分数和返回数量
-     *
-     * @param scoringModel 用于内容重排序的评分模型
-     */
-    public KnowEngineReRankingContentAggregator(ScoringModel scoringModel) {
-        this(scoringModel, DEFAULT_QUERY_SELECTOR, null);
-    }
-
-    /**
      * 创建可指定查询选择器和最低分数的聚合器，返回数量默认不受限制
      *
      * @param scoringModel  用于内容重排序的评分模型
@@ -103,6 +95,7 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
      * @param minScore      最低重排序分数；为 {@code null} 时不过滤低分内容
      * @param maxResults    最多返回的内容数量；为 {@code null} 时不限制结果数量
      */
+    @Builder
     public KnowEngineReRankingContentAggregator(ScoringModel scoringModel,
                                                 Function<Map<Query, Collection<List<Content>>>, Query> querySelector,
                                                 Double minScore,
@@ -112,15 +105,6 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
         this.querySelector = getOrDefault(querySelector, DEFAULT_QUERY_SELECTOR);
         this.minScore = minScore;
         this.maxResults = getOrDefault(maxResults, Integer.MAX_VALUE);
-    }
-
-    /**
-     * 创建聚合器构建器，用于以链式调用方式配置评分模型、查询选择器及过滤条件
-     *
-     * @return 新的聚合器构建器
-     */
-    public static ReRankingContentAggregatorBuilder builder() {
-        return new ReRankingContentAggregatorBuilder();
     }
 
     /**
@@ -152,7 +136,7 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
          *     scoreAll(fusedContents, Q1.text())
          *     那么问题是重排序时到底采用那个查询作为依据,如果随便选择,结果可能不同,因此默认代码拒绝自行猜测,调用方必须明确告诉它采用什么策略,例如:始终使用第一个查询:
          *     .querySelector(map -> map.keySet().iterator().next())
-         * 大多数情况下都可以使用【改写后的问题】作为文档结构重排序的依据;
+         * 大多数情况下都可直接使用【改写后的问题】作为文档结构重排序的依据;
          * </P>
          */
         Query query = querySelector.apply(queryToContents);
@@ -161,9 +145,11 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
          * 针对每个查询,在每个查询内对该查询对应的结果进行 RRF 统一融合
          * <p>
          *  为什么当前 aggregate 方法中需要做两次 RRF 融合,而不直接把所有列表展开做一次 RRF ?
-         *   例如: Query 1对应三个 Retriever，每个 Retriever 都包含了结果A; Query 2 对应一个 Retriever，该 Retriever 中仅包含结果 B,
-         *   实际上,结果 A 对 Query 1 和结果 B 对 Query 2 的权重应该相同,如果直接展开全部结果进行 RRF 的话,会使得结果 A三倍权重于结果 B;
-         *  因此两次 RRF 的设计可以避免“Retriever 更多的 Query 权重更大”
+         *   例如:
+         *      Query 1 对应三个 Retriever, 每个 Retriever 都包含了结果 A;
+         *      Query 2 对应一个 Retriever, 该 Retriever 中仅包含结果 B;
+         *   实际上,结果 A 对 Query 1 和结果 B 对 Query 2 的权重应该相同,如果直接展开全部结果进行 RRF 的话,会使得结果 A 三倍权重于结果 B;
+         *  因此两次 RRF 的设计可以避免【Retriever 更多的 Query 权重更大】
          *
          *  但其实两次 RRF 的排序结果对后续的模型精排序没有任何影响,因为只对 RRF 的结果做了去重,并未做 RRF 结果截断,因此 RRF 的排名计算其实是冗余的;
          * </p>
@@ -174,30 +160,24 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
          * 转换为基于 EMBEDDING_ID 判断相等的内容对象, 确保跨查询融合时可以识别重复片段
          */
         List<List<KnowEngineDefaultContent>> knowEngineDefaultContents = queryToFusedContents.values().stream().map(contents -> {
-            return contents.stream().map(content -> {
-                return new KnowEngineDefaultContent((DefaultContent) content);
-            }).toList();
+            return contents.stream().map(content -> new KnowEngineDefaultContent((DefaultContent) content)).toList();
         }).toList();
 
-        // 没有生成任何待融合的结果列表时直接返回空结果
         if (knowEngineDefaultContents.isEmpty()) {
             return emptyList();
         }
 
         /**
-         * 针对所有查询对应的结果进行 RRF 统一融合
+         * 针对所有查询对应的结果去重和 RRF 统一融合
          */
         List<Content> fusedContents = KnowEngineReciprocalRankFuser.fuse(knowEngineDefaultContents);
 
         // 按照 maxResults 去截取候选
         //fusedContents = fusedContents.stream().limit(maxResults).toList();
 
-        // 所有候选内容均为空时，不再调用评分模型
-        if (fusedContents.isEmpty()) {
-            return fusedContents;
-        }
-
-        // 使用选定的查询对融合后的全部内容进行重排序和过滤
+        /**
+         * 调用评分 LLM 对结果进行精排和过滤
+         */
         return reRankAndFilter(fusedContents, query);
     }
 
@@ -250,76 +230,4 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
                 .collect(Collectors.toList());
     }
 
-    /** 用于以链式调用方式构建 {@link KnowEngineReRankingContentAggregator} */
-    public static class ReRankingContentAggregatorBuilder {
-
-        /** 用于内容重排序的评分模型 */
-        private ScoringModel scoringModel;
-
-        /** 多查询场景下用于选择重排序查询的函数 */
-        private Function<Map<Query, Collection<List<Content>>>, Query> querySelector;
-
-        /** 允许返回的最低重排序分数 */
-        private Double minScore;
-
-        /** 重排序后最多返回的内容数量 */
-        private Integer maxResults;
-
-        /** 限制外部直接实例化，统一通过 {@link KnowEngineReRankingContentAggregator#builder()} 创建 */
-        ReRankingContentAggregatorBuilder() {
-        }
-
-        /**
-         * 设置用于内容重排序的评分模型
-         *
-         * @param scoringModel 评分模型
-         * @return 当前构建器
-         */
-        public ReRankingContentAggregatorBuilder scoringModel(ScoringModel scoringModel) {
-            this.scoringModel = scoringModel;
-            return this;
-        }
-
-        /**
-         * 设置多查询场景下的重排序查询选择器
-         *
-         * @param querySelector 查询选择器
-         * @return 当前构建器
-         */
-        public ReRankingContentAggregatorBuilder querySelector(Function<Map<Query, Collection<List<Content>>>, Query> querySelector) {
-            this.querySelector = querySelector;
-            return this;
-        }
-
-        /**
-         * 设置允许返回的最低重排序分数
-         *
-         * @param minScore 最低分数
-         * @return 当前构建器
-         */
-        public ReRankingContentAggregatorBuilder minScore(Double minScore) {
-            this.minScore = minScore;
-            return this;
-        }
-
-        /**
-         * 设置重排序后最多返回的内容数量
-         *
-         * @param maxResults 最大结果数量
-         * @return 当前构建器
-         */
-        public ReRankingContentAggregatorBuilder maxResults(Integer maxResults) {
-            this.maxResults = maxResults;
-            return this;
-        }
-
-        /**
-         * 根据当前配置创建内容聚合器，参数校验和默认值处理由聚合器构造方法完成
-         *
-         * @return 配置完成的内容聚合器
-         */
-        public KnowEngineReRankingContentAggregator build() {
-            return new KnowEngineReRankingContentAggregator(this.scoringModel, this.querySelector, this.minScore, this.maxResults);
-        }
-    }
 }
