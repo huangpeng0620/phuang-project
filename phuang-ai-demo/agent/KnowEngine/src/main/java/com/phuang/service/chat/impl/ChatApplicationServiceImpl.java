@@ -457,7 +457,8 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
         return Flux.<String>create(sink -> {
                     Consumer<String> processCallback = sink::next;
 
-                    //构造权限过滤
+                    // 构造当前用户可访问的文档权限,同时供 ES 元数据过滤和 Neo4j 图谱过滤使用。
+                    List<String> accessibleByPermissions = buildAccessibleByPermissions(chatParam);
                     Filter accessibleByFilter = buildFilter(chatParam);
 
                     //构建查询改写器
@@ -528,6 +529,7 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
                                         .promptTemplate(new PromptTemplate(textToCypherPrompt.getContentAsString(UTF_8)))
                                         .fallbackRetriever(embeddingRetriever)
                                         .userId(chatParam.getUserId())
+                                        .accessibleByPermissions(accessibleByPermissions)
                                         .build(), processCallback);
                     } catch (IOException e) {
                         log.warn("Error creating Neo4j retriever", e);
@@ -626,6 +628,17 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
             sb.append(dynamicSql);
         }
         return sb.toString();
+    }
+
+    /**
+     * 构造权限过滤器
+     *
+     * @param chatParam
+     * @return
+     */
+    private List<String> buildAccessibleByPermissions(ChatParam chatParam) {
+        RoleEnum roleEnum = userRoleService.getUserRole(chatParam);
+        return List.of(DocumentPermissionUtils.getDocumentAccessiblePermission(roleEnum));
     }
 
     /**

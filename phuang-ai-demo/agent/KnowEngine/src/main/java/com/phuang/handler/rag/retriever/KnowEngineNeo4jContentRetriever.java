@@ -45,13 +45,11 @@ public class KnowEngineNeo4jContentRetriever implements ContentRetriever {
 
     private final String userId;
 
-    public KnowEngineNeo4jContentRetriever(Neo4jText2CypherRetriever neo4jText2CypherRetriever,
-                                           ContentRetriever fallbackRetriever,
-                                           String userId) {
-        this.neo4jText2CypherRetriever = neo4jText2CypherRetriever;
-        this.fallbackRetriever = fallbackRetriever;
-        this.userId = userId;
-    }
+    /**
+     * 当前用户允许访问的文档权限列表,例如 VISITOR、OWNER、CUSTOMER_SERVICE。
+     * Text2Cypher 生成查询时必须据此过滤 KGFact.accessibleBy。
+     */
+    private final List<String> accessibleByPermissions;
 
     /**
      * 根据 Neo4j 和模型配置构建图数据库检索器。
@@ -65,7 +63,8 @@ public class KnowEngineNeo4jContentRetriever implements ContentRetriever {
                                             Integer maxRetries,
                                             ChatModel chatModel,
                                             ContentRetriever fallbackRetriever,
-                                            String userId) {
+                                            String userId,
+                                            List<String> accessibleByPermissions) {
         Neo4jText2CypherRetriever.Builder neo4jBuilder = Neo4jText2CypherRetriever.builder()
                 .graph(graph)
                 .chatModel(chatModel)
@@ -85,11 +84,13 @@ public class KnowEngineNeo4jContentRetriever implements ContentRetriever {
         this.neo4jText2CypherRetriever = neo4jBuilder.build();
         this.fallbackRetriever = fallbackRetriever;
         this.userId = userId;
+        this.accessibleByPermissions = accessibleByPermissions == null ? List.of() : accessibleByPermissions;
     }
 
     private static final String QUESTION_TEMPLATE = """
             用户问题是: %s,
             用户信息是: %s,
+            当前用户可访问的文档权限是: %s,
             当前时间: %s
             """;
 
@@ -98,7 +99,8 @@ public class KnowEngineNeo4jContentRetriever implements ContentRetriever {
         List<Content> results = Lists.newArrayList();
         try {
             // 与 SQL 检索器保持一致：在问题中补充用户上下文与时间信息，辅助 LLM 生成更准确的 Cypher
-            query = new Query(String.format(QUESTION_TEMPLATE, query.text(), userId, LocalDateTime.now()), query.metadata());
+            query = new Query(String.format(QUESTION_TEMPLATE, query.text(), userId,
+                    accessibleByPermissions, LocalDateTime.now()), query.metadata());
             results = neo4jText2CypherRetriever.retrieve(query);
         } catch (Exception e) {
             log.warn("Neo4j 图数据库检索异常，降级使用知识库检索, query: {}", query.text(), e);

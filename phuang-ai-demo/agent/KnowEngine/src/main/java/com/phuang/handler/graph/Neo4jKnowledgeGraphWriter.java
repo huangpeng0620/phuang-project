@@ -55,7 +55,8 @@ public class Neo4jKnowledgeGraphWriter {
                         MERGE (d:KGDocument {docId: $docId})
                         SET d.title = $title, d.accessibleBy = $accessibleBy
                         MERGE (v:KGVersion {versionId: $versionId})
-                        SET v.docId = $docId, v.version = $version, v.state = 'BUILDING'
+                        SET v.docId = $docId, v.version = $version,
+                            v.state = 'BUILDING', v.accessibleBy = $accessibleBy
                         MERGE (d)-[:HAS_VERSION]->(v)
                         """, params).consume();
                 // 重试从头抽取时先清除该版本的旧结果，避免两次模型输出不同时遗留旧事实。
@@ -67,12 +68,12 @@ public class Neo4jKnowledgeGraphWriter {
     }
 
     /**
-     * 将一个分段及其已验证事实写入图谱。
+     * 将一个分段及其已验证事实写入图谱
      * <p>
      * 主流程按业务动作拆开：
      *      1.先登记【事实来自哪个分段】
      *      2.再登记【事实说的是谁】
-     *      3.最后登记【事实关联了谁】和 【原文证据是什么】
+     *      3.最后登记【事实关联了谁】和【原文证据是什么】
      * </p>
      */
     public void writeSegment(KnowledgeSegmentEntity segment, List<GraphFactExtractor.Fact> facts) {
@@ -102,7 +103,8 @@ public class Neo4jKnowledgeGraphWriter {
      *      1. segmentId: MySQL knowledge_segment 表主键，用来回查原始分段正文
      *      2. docId: 文档 ID
      *      3. versionId: 文档版本 ID,用来隔离同一资料的不同版本
-     *      4. chunkId: 业务分段 ID，保留原有分段标识
+     *      4. chunkId: 业务分段 ID,保留原有分段标识
+     *      5. accessibleBy: 文档可见范围,从 KGVersion 同步而来,用于图谱检索权限过滤
      *
      * 写入的关系: KGVersion -[:HAS_CHUNK]-> KGChunk，表示 【这个文档版本包含这个分段】
      * </p>
@@ -114,7 +116,8 @@ public class Neo4jKnowledgeGraphWriter {
                 SET
                     c.docId = $docId,
                     c.versionId = $versionId,
-                    c.chunkId = $chunkId
+                    c.chunkId = $chunkId,
+                    c.accessibleBy = v.accessibleBy
                 MERGE (v)-[:HAS_CHUNK]->(c)
                 """, segmentParams(segment)).consume();
     }
@@ -131,20 +134,22 @@ public class Neo4jKnowledgeGraphWriter {
      *        4.qualifiers: 年款、配置、地区、生效时间等限定条件的 JSON 字符串
      *        5.value: 数值事实的数值，例如续航 750；关系事实为 null
      *        6.unit: 数值事实单位，例如 KM、CNY、MONTH；关系事实为 null
+     *        7.accessibleBy: 文档可见范围,从 KGVersion 同步而来,用于图谱检索权限过滤
      *
      *      KGFact 表示的是【一个有证据、有版本、有适用范围的事实卡片】,当客体实体为数值事实,构建时就不会存在客体实体,
      *  因为数值事实本质上也是事实，不是一个业务实体;
      *
      * KGEntity 实体节点，字段包括:
-     *      1.entityKey: 实体唯一键，由实体类型和规范化名称组成。
-     *      2.name: 实体展示名称，例如“车型 A”“电池 B”。
-     *      3.type: 实体类型，例如 VEHICLE、PART、FEATURE、COMPANY。
+     *      1.entityKey: 实体唯一键，由实体类型和规范化名称组成
+     *      2.name: 实体展示名称，例如:车型 A、电池 B
+     *      3.type: 实体类型，例如 VEHICLE、PART、FEATURE、COMPANY
      *
      * 写入的关系: KGFact -[:SUBJECT]-> KGEntity，表示【这条事实说的是哪个主体】
      * </p>
      */
     private static void saveFactSubject(TransactionContext tx, Map<String, Object> params) {
         tx.run("""
+                MATCH (v:KGVersion {versionId: $versionId})
                 MERGE (s:KGEntity {entityKey: $subjectKey})
                 ON CREATE SET
                     s.name = $subjectName,
@@ -155,19 +160,22 @@ public class Neo4jKnowledgeGraphWriter {
                     f.predicate = $predicate,
                     f.qualifiers = $qualifiers,
                     f.value = $value,
-                    f.unit = $unit
+                    f.unit = $unit,
+                    f.accessibleBy = v.accessibleBy
                 MERGE (f)-[:SUBJECT]->(s)
                 """, params).consume();
     }
 
     /**
-     * 保存事实的客体实体，数值事实没有客体实体，例如 RANGE_KM=750，所以直接跳过。
+     * 保存事实的客体实体
+     *
+     * 注意:数值事实没有客体实体,会将数值事实放在 KGFact 上，是因为数值是事实的属性，不是图谱里的实体
      * <p>
      * KGEntity 客体实体节点，字段包括:
      *      1.entityKey: 客体实体唯一键
      *      2.name: 客体实体展示名称，例如: 电池 B、厂商 C、L2辅助驾驶
      *      3.type: 客体实体类型，例如 PART、COMPANY、FEATURE
-
+     *
      * 写入的关系: KGFact -[:OBJECT]-> KGEntity，表示【这条事实关联到哪个客体】
      * </p>
      */
