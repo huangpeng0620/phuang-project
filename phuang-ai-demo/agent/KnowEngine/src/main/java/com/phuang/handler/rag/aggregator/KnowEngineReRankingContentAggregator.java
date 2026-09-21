@@ -75,19 +75,6 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
     private final Integer maxResults;
 
     /**
-     * 创建可指定查询选择器和最低分数的聚合器，返回数量默认不受限制
-     *
-     * @param scoringModel  用于内容重排序的评分模型
-     * @param querySelector 多查询场景下用于选择重排序查询的函数；为 {@code null} 时使用默认选择器
-     * @param minScore      最低重排序分数；为 {@code null} 时不过滤低分内容
-     */
-    public KnowEngineReRankingContentAggregator(ScoringModel scoringModel,
-                                                Function<Map<Query, Collection<List<Content>>>, Query> querySelector,
-                                                Double minScore) {
-        this(scoringModel, querySelector, minScore, null);
-    }
-
-    /**
      * 创建完整配置的内容聚合器，并对必填参数和可选参数的默认值进行初始化
      *
      * @param scoringModel  用于内容重排序的评分模型，不能为空
