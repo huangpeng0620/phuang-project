@@ -29,6 +29,14 @@ langchain4j.open-ai.streaming-chat-model.base-url: https://dashscope.aliyuncs.co
 langchain4j.open-ai.streaming-chat-model.log-requests: true
 langchain4j.open-ai.streaming-chat-model.log-responses: true
 
+# JEV 模型配置
+jev.route.enabled: true
+jev.route.endpoint: https://api.typesafe.ai/v1/systemone
+jev.route.api-key: apikey_241b8b25baf74ed4799b8b874896155821b_c593af76a352f63b93444cf148c9753a82d2fb1a53dba2f698137d3377d0ebc1
+jev.route.model: jev-latest
+jev.route.timeout: 1500ms
+jev.route.min-confidence: 0.60
+
 # mysql 连接信息
 spring.datasource.url: jdbc:mysql://8.136.10.85:3306/know_engine?useUnicode=true&characterEncoding=UTF-8&rewriteBatchedStatements=true
 spring.datasource.username: root
@@ -93,4 +101,3 @@ sa-token.token-style: uuid # token 风格（uuid）
 sa-token.is-log: false # 是否输出操作日志
 sa-token.is-read-cookie: true # 是否从 cookie 中读取 token
 sa-token.is-read-header: true # 是否从 header 中读取 token
-

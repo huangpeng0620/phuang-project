@@ -14,6 +14,7 @@ import com.phuang.handler.rag.retriever.KnowEngineElasticsearchContentRetriever;
 import com.phuang.handler.rag.retriever.KnowEngineNeo4jContentRetriever;
 import com.phuang.handler.rag.retriever.KnowEngineSqlDatabaseContentRetriever;
 import com.phuang.handler.rag.retriever.ProgressAwareContentRetriever;
+import com.phuang.handler.rag.router.JevRouteClient;
 import com.phuang.handler.rag.router.KnowEngineQueryRouter;
 import com.phuang.handler.rag.transformer.KnowEngineQueryTransformer;
 import com.phuang.model.dto.ChatParam;
@@ -93,6 +94,9 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
 
     @Resource
     private ChatModel chatModel;
+
+    @Resource
+    private JevRouteClient jevRouteClient;
 
     @Resource
     private ChatConversationService chatConversationService;
@@ -541,7 +545,7 @@ public class ChatApplicationServiceImpl implements ChatApplicationService {
                             fullTextRetriever,
                             sqlRetriever,
                             neo4jRetriever),
-                            chatModel, processCallback);
+                            chatModel, jevRouteClient, processCallback);
 
                     //构造融合重排序器(ProgressAwareContentAggregator -> KnowEngineHybridContentAggregator -> KnowEngineReRankingContentAggregator)
                     ProgressAwareContentAggregator knowEngineReRankingContentAggregator = ProgressAwareContentAggregator.builder()
