@@ -4,6 +4,7 @@ import com.phuang.model.dto.KnowEngineDefaultContent;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.scoring.ScoringModel;
 import dev.langchain4j.rag.content.Content;
+import dev.langchain4j.rag.content.ContentMetadata;
 import dev.langchain4j.rag.content.DefaultContent;
 import dev.langchain4j.rag.content.aggregator.ContentAggregator;
 import dev.langchain4j.rag.content.aggregator.DefaultContentAggregator;
@@ -179,7 +180,6 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
         Map<Query, List<Content>> fused = new LinkedHashMap<>();
         for (Query query : queryToContents.keySet()) {
             Collection<List<Content>> contents = queryToContents.get(query);
-            // 融合同一查询从不同数据源召回的结果，并保留查询与融合结果的对应关系
             fused.put(query, ReciprocalRankFuser.fuse(contents));
         }
         return fused;
@@ -204,15 +204,22 @@ public class KnowEngineReRankingContentAggregator implements ContentAggregator {
 
         // 将文本片段与对应分数关联，供后续过滤和排序使用
         Map<TextSegment, Double> segmentToScore = new HashMap<>();
+        Map<TextSegment, Content> segmentToContent = new HashMap<>();
         for (int i = 0; i < segments.size(); i++) {
             segmentToScore.put(segments.get(i), scores.get(i));
+            segmentToContent.put(segments.get(i), contents.get(i));
         }
 
-        // 依次执行最低分过滤、分数降序排列、分数元数据写入和结果数量截断
+        // 依次执行最低分过滤、分数降序排列、保留原元数据并写入重排序分数、结果数量截断
         return segmentToScore.entrySet().stream()
                 .filter(entry -> minScore == null || entry.getValue() >= minScore)
                 .sorted(Map.Entry.<TextSegment, Double>comparingByValue().reversed())
-                .map(entry -> Content.from(entry.getKey(), Map.of(RERANKED_SCORE, entry.getValue())))
+                .map(entry -> {
+                    Content content = segmentToContent.get(entry.getKey());
+                    Map<ContentMetadata, Object> metadata = new HashMap<>(content.metadata());
+                    metadata.put(RERANKED_SCORE, entry.getValue());
+                    return Content.from(content.textSegment(), metadata);
+                })
                 .limit(maxResults)
                 .collect(Collectors.toList());
     }
