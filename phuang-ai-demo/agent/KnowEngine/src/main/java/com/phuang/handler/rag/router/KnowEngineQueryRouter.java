@@ -150,7 +150,6 @@ public class KnowEngineQueryRouter implements QueryRouter {
                 strategy = queryRouteResult.getStrategy();
                 log.info("LLM route success, strategy: {}", strategy);
             }
-
             return selectRetrievers(strategy);
         } catch (JSONException jsonException) {
             log.error("LLM 路由响应解析失败", jsonException);
