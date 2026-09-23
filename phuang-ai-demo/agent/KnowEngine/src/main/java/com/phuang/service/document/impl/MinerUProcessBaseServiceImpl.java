@@ -7,7 +7,7 @@ import com.phuang.model.enums.DocumentStatus;
 import com.phuang.model.exception.BusinessException;
 import com.phuang.service.FileProcessService;
 import com.phuang.service.KnowledgeDocumentService;
-import com.phuang.util.MineruParseUtilCopy;
+import com.phuang.util.MinerUParseUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,7 +25,7 @@ public abstract class MinerUProcessBaseServiceImpl implements FileProcessService
     private KnowledgeDocumentService knowledgeDocumentService;
 
     @Resource
-    private MineruParseUtilCopy mineruParseUtilCopy;
+    private MinerUParseUtil minerUParseUtil;
 
     /**
      * 处理文档转换:  PDF --> Markdown 格式
@@ -36,14 +36,17 @@ public abstract class MinerUProcessBaseServiceImpl implements FileProcessService
      *
      * @param document 文档对象
      */
-    public String processDocument(KnowledgeDocumentEntity document, String fileMinioUrl, InputStream inputStream)  {
+    public String processDocument(KnowledgeDocumentEntity document, String fileMinioUrl, InputStream inputStream) {
         log.info("开始处理文档转换为 Markdown,documentId:{}", document.getDocTitle());
         try {
             //更新文档状态至【转换中】
             knowledgeDocumentService.advanceDocumentAndVersionStatus(document.getDocId(), document.getCurrentVersionId(), DocumentStatus.CONVERTING);
 
-            //转换并获取文档 url
-            String markdownMinioUrl = parseDocumentToMarkdown(fileMinioUrl);
+            // 发起 MinerU 解析任务并等待任务完成
+            MinerUParseResult parseResult = waitForParseResult(fileMinioUrl);
+
+            // 处理 MinerU 结果文件，生成最终 Markdown URL
+            String markdownMinioUrl = minerUParseUtil.processParseResult(parseResult.taskId(), parseResult.resultFileUrl());
 
             //更新文档状态至【转换完成】
             knowledgeDocumentService.advanceDocumentAndVersionStatus(document.getDocId(), document.getCurrentVersionId(), DocumentStatus.CONVERTED);
@@ -57,22 +60,22 @@ public abstract class MinerUProcessBaseServiceImpl implements FileProcessService
     }
 
     /**
-     * 调用 Miner 进行任务解析
+     * 调用 MinerU 发起解析任务并等待任务完成
      * @param minioFileUrl minio 文件url
-     * @return Miner的md文件url
+     * @return MinerU 任务查询结果
      * @throws Exception
      */
-    private String parseDocumentToMarkdown(String minioFileUrl) throws Exception {
-        String taskId = mineruParseUtilCopy.createParseTask(minioFileUrl);
+    private MinerUParseResult waitForParseResult(String minioFileUrl) throws Exception {
+        String taskId = minerUParseUtil.createParseTask(minioFileUrl);
         if (StrUtil.isEmpty(taskId)) {
             throw new BusinessException("Miner发起解析任务失败,minioFileUrl:{}", minioFileUrl);
         }
         Thread.sleep(5000);
         for (int i = 0; i < Integer.MAX_VALUE; i++) {
-            MinerUParseResult result = mineruParseUtilCopy.queryParseResult(taskId);
+            MinerUParseResult result = minerUParseUtil.queryParseResult(taskId);
             switch (result.state()) {
                 case "done":
-                    return result.markdownMinioUrl();
+                    return result;
                 case "failed":
                     throw new BusinessException("MinerU 解析失败:" + result.errorMessage());
                 case "pending", "running", "converting":
@@ -82,7 +85,7 @@ public abstract class MinerUProcessBaseServiceImpl implements FileProcessService
                     throw new BusinessException("未知的 MinerU 任务状态:" + result.state());
             }
         }
-        throw new BusinessException("MinerU 解析任务等待超时,taskId=");
+        throw new BusinessException("MinerU 解析任务等待超时,taskId=" + taskId);
     }
 
 }
