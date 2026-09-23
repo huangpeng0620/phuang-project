@@ -38,7 +38,7 @@ import java.util.zip.ZipInputStream;
  */
 @Slf4j
 @Service
-public class MineruParseUtilCopy {
+public class MinerUParseUtil {
 
     @Value("${langchain4j.open-ai.chat-model.api-key}")
     private String chatModelApiKey;
@@ -68,7 +68,7 @@ public class MineruParseUtilCopy {
 
     private static final Duration ZIP_DOWNLOAD_TIMEOUT = Duration.ofMinutes(5);
 
-    public MineruParseUtilCopy(ObjectMapper objectMapper) {
+    public MinerUParseUtil(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
@@ -89,7 +89,7 @@ public class MineruParseUtilCopy {
     }
 
     /**
-     * 使用 MinIO 文件访问地址创建 MinerU 精准解析任务。
+     * 使用 MinIO 文件访问地址创建 MinerU 精准解析任务
      *
      * @param minioFileUrl MinerU 服务可访问的 MinIO 文件 URL
      * @return MinerU 任务 ID
@@ -111,11 +111,10 @@ public class MineruParseUtilCopy {
     }
 
     /**
-     * 查询 MinerU 解析任务。任务完成时下载结果 ZIP，提取其中的 Markdown 并上传到 MinIO。
-     * 重复查询已完成任务会覆盖同一 taskId 对应的 MinIO 对象，便于调用方安全重试。
+     * 查询 MinerU 解析任务状态和结果文件地址
      *
      * @param taskId MinerU 任务 ID
-     * @return 解析状态及 Markdown 的 MinIO 地址
+     * @return MinerU 任务状态；任务完成时包含结果 ZIP 地址
      */
     public MinerUParseResult queryParseResult(String taskId) {
         HttpRequest request = authenticatedRequestBuilder(
@@ -139,13 +138,22 @@ public class MineruParseUtilCopy {
             return new MinerUParseResult(taskId, state, null, null);
         }
 
-        // 只有 done 状态才会包含 full_zip_url，并触发 ZIP 下载及 Markdown 入库
+        // 只有 done 状态才会包含 full_zip_url，文件处理交给调用方显式执行
         String fullZipUrl = requireText(data, "full_zip_url");
-        String markdownMinioUrl = downloadMarkdownAndUpload(taskId, fullZipUrl);
-        return new MinerUParseResult(taskId, state, markdownMinioUrl, null);
+        return new MinerUParseResult(taskId, state, fullZipUrl, null);
     }
 
-    private String downloadMarkdownAndUpload(String taskId, String fullZipUrl) {
+    /**
+     * 下载并处理 MinerU 任务结果文件：解压 ZIP、处理 Markdown 和图片并上传到 MinIO
+     *
+     * @param taskId MinerU 任务 ID
+     * @param fullZipUrl MinerU 结果 ZIP 地址
+     * @return 处理后的 Markdown MinIO 地址
+     */
+    public String processParseResult(String taskId, String fullZipUrl) {
+        if (fullZipUrl == null || fullZipUrl.isBlank()) {
+            throw new BusinessException("MinerU 结果 ZIP 地址为空,taskId=" + taskId);
+        }
         String zipFilePath = null;
         String extractDir = null;
         try {
