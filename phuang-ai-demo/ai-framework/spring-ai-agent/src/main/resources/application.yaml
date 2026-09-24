@@ -11,3 +11,24 @@ spring.application.name: spring-ai-agent
 spring.ai.dashscope.api-key: @dashscope.api.key@
 spring.ai.dashscope.base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
 spring.ai.dashscope.chat.options.model: deepseek-r1
+
+# mem0配置
+spring.ai.alibaba.mem0.client.base-url: http://8.136.10.85:8888
+spring.ai.alibaba.mem0.client.timeout-seconds: 120
+spring.ai.alibaba.mem0.server.version: v0.1.116
+
+# spring.ai.alibaba.mem0.server.vector-store.provider: http://8.136.10.85
+spring.ai.alibaba.mem0.server.vector-store.provider: pgvector
+spring.ai.alibaba.mem0.server.vector-store.config.host: pgvector
+spring.ai.alibaba.mem0.server.vector-store.config.port: 5432
+spring.ai.alibaba.mem0.server.vector-store.config.dbname: rag_test
+spring.ai.alibaba.mem0.server.vector-store.config.user: pgvector
+spring.ai.alibaba.mem0.server.vector-store.config.password: pgvector
+spring.ai.alibaba.mem0.server.vector-store.config.collection-name: mem0_memories
+spring.ai.alibaba.mem0.server.vector-store.config.embedding-model-dims: 1024
+
+spring.ai.alibaba.mem0.server.graph-store.provider: neo4j
+#spring.ai.alibaba.mem0.server.graph-store.config.url: bolt://8.136.10.85:7687
+spring.ai.alibaba.mem0.server.graph-store.config.url: bolt://neo4j:7687
+spring.ai.alibaba.mem0.server.graph-store.config.username: neo4j
+spring.ai.alibaba.mem0.server.graph-store.config.password: neo4j666
