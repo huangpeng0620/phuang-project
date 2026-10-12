@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="SproutTrail 文生图工作台" />
+    <title>SproutTrail · 文生图</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="SproutTrail 首页">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32">
+              <path d="M16 25V14" />
+              <path d="M16 17C11 17 8 14 8 9c5 0 8 3 8 8Z" />
+              <path d="M16 13c0-5 3-8 8-8 0 5-3 8-8 8Z" />
+            </svg>
+          </span>
+          <span>SproutTrail</span>
+        </a>
+        <div class="status-pill"><span></span> 文生图 · MVP</div>
+      </header>
+
+      <main class="workspace">
+        <section class="composer" aria-labelledby="composer-title">
+          <div class="eyebrow">CREATE WITH WORDS</div>
+          <h1 id="composer-title">把脑海里的画面，<br />描述出来。</h1>
+          <p class="intro">写下主体、场景、风格和光线，我们会生成一张图片。</p>
+
+          <form id="generate-form">
+            <div class="field-head">
+              <label for="prompt">画面描述</label>
+              <span id="prompt-count">0 / 800</span>
+            </div>
+            <div class="prompt-box">
+              <textarea
+                id="prompt"
+                maxlength="800"
+                rows="7"
+                required
+                placeholder="例如：清晨的森林里，一间玻璃小屋被薄雾环绕，温暖灯光从窗户透出，电影感，细腻写实……"
+              ></textarea>
+              <button class="clear-button" id="clear-prompt" type="button" aria-label="清空描述">×</button>
+            </div>
+
+            <div class="examples" aria-label="示例描述">
+              <span>试试：</span>
+              <button type="button" data-prompt="清晨的森林里，一间玻璃小屋被薄雾环绕，温暖灯光从窗户透出，电影感，细腻写实">森林小屋</button>
+              <button type="button" data-prompt="漂浮在云海之上的未来城市，白色建筑与空中花园，柔和晨光，广角构图">天空之城</button>
+              <button type="button" data-prompt="一只戴着圆框眼镜的橘猫程序员，坐在书桌前写代码，温暖插画风格">程序员橘猫</button>
+            </div>
+
+            <button class="generate-button" id="generate-button" type="submit" disabled>
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="m10 2 1.1 4.1L15 7.5l-3.9 1.4L10 13 8.9 8.9 5 7.5l3.9-1.4L10 2Z" />
+                <path d="m15.5 12 .7 2.3 2.3.7-2.3.7-.7 2.3-.7-2.3-2.3-.7 2.3-.7.7-2.3Z" />
+              </svg>
+              <span>生成图片</span>
+            </button>
+            <p class="form-note">生成结果会保存到服务器，并可下载到当前设备</p>
+          </form>
+        </section>
+
+        <section class="canvas-panel" aria-labelledby="result-title">
+          <div class="canvas-head">
+            <div>
+              <span class="section-index">01</span>
+              <h2 id="result-title">生成结果</h2>
+            </div>
+            <div class="result-actions" id="result-actions" hidden>
+              <a id="download-link" href="#" download="image.png" title="下载图片" aria-label="下载图片">
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5M4 15.5h12" />
+                </svg>
+              </a>
+            </div>
+          </div>
+
+          <div class="canvas-stage" id="canvas-stage">
+            <div class="empty-state" id="empty-state">
+              <div class="empty-visual" aria-hidden="true">
+                <div class="sun"></div>
+                <div class="hill hill-back"></div>
+                <div class="hill hill-front"></div>
+                <div class="spark spark-one">✦</div>
+                <div class="spark spark-two">✧</div>
+              </div>
+              <h3>等待你的灵感</h3>
+              <p>输入画面描述，生成的图片会出现在这里</p>
+            </div>
+
+            <div class="loading-state" id="loading-state" hidden aria-live="polite">
+              <div class="loading-art" aria-hidden="true"><span></span><span></span><span></span></div>
+              <h3>正在描绘你的画面</h3>
+              <p>这通常需要 10–60 秒，请保持页面打开</p>
+            </div>
+
+            <div class="error-state" id="error-state" hidden role="alert">
+              <div class="error-icon" aria-hidden="true">!</div>
+              <h3>暂时没有生成成功</h3>
+              <p id="error-message">请稍后重试</p>
+            </div>
+
+            <figure class="result-figure" id="result-figure" hidden>
+              <img id="generated-image" alt="" />
+              <figcaption>
+                <span>已保存</span>
+                <small id="result-filename"></small>
+              </figcaption>
+            </figure>
+          </div>
+          <p class="canvas-footnote" id="result-status" aria-live="polite">固定生成 1024 × 1024 PNG</p>
+        </section>
+      </main>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>

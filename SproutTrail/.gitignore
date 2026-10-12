@@ -1,0 +1,14 @@
+# Maven build output
+target/
+
+# Generated images and runtime data
+data/
+
+# Local secrets
+.env
+application-local.yml
+
+# IDE and operating system files
+.idea/
+*.iml
+.DS_Store

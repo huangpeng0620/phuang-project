@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.5.16</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.sprouttrail</groupId>
+    <artifactId>sprouttrail</artifactId>
+    <version>1.0.0</version>
+    <name>SproutTrail</name>
+    <description>一个基于 Spring Boot 和 LangChain4j 的轻量文生图应用</description>
+
+    <properties>
+        <java.version>21</java.version>
+        <langchain4j.version>1.20.2</langchain4j.version>
+    </properties>
+
+    <dependencies>
+        <!-- 提供 Spring MVC、内置 Tomcat 和静态资源托管能力。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- 用于校验前端提交的 prompt，防止空内容和超长内容进入 AI 服务。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!--
+          MVP 只需要 LangChain4j 的 OpenAI ImageModel 实现。
+          不引入 AI Services、RAG、向量库等当前功能不需要的模块。
+        -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>sprouttrail</finalName>
+        <plugins>
+            <!-- 将应用及其依赖打包成可直接 java -jar 启动的可执行 jar。 -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

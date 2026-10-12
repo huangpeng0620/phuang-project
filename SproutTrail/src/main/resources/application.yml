@@ -1,0 +1,20 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: sprouttrail
+  threads:
+    virtual:
+      # 图片生成属于高延迟网络调用，JDK 21 虚拟线程适合 MVP 的同步请求模型。
+      enabled: true
+
+app:
+  image:
+    api-key: sk-d1e56d0012004a2cbdf6b3ddb2a8cc3d
+    base-url: https://llm-yjcrddyghy0vh1ul.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+    model: qwen-image-3.0
+    size: 1024x1024
+    quality: medium
+    storage-path: ${IMAGE_STORAGE_PATH:./data/images}
+    timeout: 120s
