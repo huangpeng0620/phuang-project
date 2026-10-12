@@ -30,8 +30,6 @@ public class ImageModelConfig {
                 .baseUrl(properties.baseUrl())
                 .modelName(properties.model())
                 .size(properties.size())
-                .quality(properties.quality())
-                .outputFormat("png")
                 .timeout(properties.timeout())
                 .maxRetries(1)
                 .build();

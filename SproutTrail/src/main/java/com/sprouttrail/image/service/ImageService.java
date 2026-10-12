@@ -12,15 +12,21 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.time.Duration;
 import java.util.Base64;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 完成图片生成、base64 解码和服务器本地保存
+ * 完成图片生成、图片数据读取和服务器本地保存
  *
  * <p>该服务不记录用户的完整 prompt，也不记录模型返回的 base64 内容，
  * 防止日志意外保存用户数据或产生超大日志文件。
@@ -34,6 +40,10 @@ public class ImageService {
 
     private final Path storageDirectory;
 
+    private final HttpClient httpClient;
+
+    private final Duration timeout;
+
     /**
      * 创建图片服务
      *
@@ -45,6 +55,11 @@ public class ImageService {
     public ImageService(ImageModel imageModel, ImageProperties properties) {
         this.imageModel = imageModel;
         this.storageDirectory = properties.storagePath().toAbsolutePath().normalize();
+        this.timeout = properties.timeout();
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(properties.timeout())
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
     }
 
     /**
@@ -52,7 +67,7 @@ public class ImageService {
      *
      * @param prompt 已通过 Controller 校验的图片描述
      * @return 图片文件名及其二进制内容
-     * @throws ImageGenerationException 模型调用失败、返回空内容或 base64 无效
+     * @throws ImageGenerationException 模型调用失败、返回空内容或图片数据无效
      * @throws ImageStorageException    图片写入本地目录失败
      */
     public GeneratedImage generate(String prompt) {
@@ -100,25 +115,68 @@ public class ImageService {
     }
 
     /**
-     * 解码模型返回的 base64 图片
-     *
-     * <p>当前 GPT Image 模型在指定 PNG 输出格式后返回 base64 数据。
-     * 如果更换为只返回 URL 的供应商，应在这里增加受控的图片下载逻辑。
+     * 读取模型返回的图片数据。
+     * OpenAI 兼容接口可能返回 base64，也可能返回短期有效的图片 URL。
      */
     private byte[] decodeImage(Image image) {
         String base64Data = image.base64Data();
-        if (base64Data == null || base64Data.isBlank()) {
-            throw new ImageGenerationException("图片模型未返回 base64 图片数据");
+        if (base64Data != null && !base64Data.isBlank()) {
+            try {
+                byte[] bytes = Base64.getDecoder().decode(base64Data);
+                if (bytes.length == 0) {
+                    throw new ImageGenerationException("图片模型返回了空图片");
+                }
+                return bytes;
+            } catch (IllegalArgumentException exception) {
+                throw new ImageGenerationException("图片模型返回的 base64 数据无效", exception);
+            }
         }
 
-        try {
-            byte[] bytes = Base64.getDecoder().decode(base64Data);
-            if (bytes.length == 0) {
-                throw new ImageGenerationException("图片模型返回了空图片");
-            }
-            return bytes;
-        } catch (IllegalArgumentException exception) {
-            throw new ImageGenerationException("图片模型返回的 base64 数据无效", exception);
+        URI imageUrl = image.url();
+        if (imageUrl == null) {
+            throw new ImageGenerationException("图片模型未返回图片数据或图片 URL");
         }
+        return downloadImage(imageUrl);
+    }
+
+    /**
+     * 下载模型返回的图片 URL，并限制为 HTTPS，避免请求不安全的本地或明文地址。
+     */
+    private byte[] downloadImage(URI imageUrl) {
+        if (!"https".equalsIgnoreCase(imageUrl.getScheme())
+                || imageUrl.getHost() == null
+                || imageUrl.getRawUserInfo() != null) {
+            throw new ImageGenerationException("图片模型返回了无效的图片 URL");
+        }
+
+        HttpResponse<byte[]> response;
+        try {
+            HttpRequest request = HttpRequest.newBuilder(imageUrl)
+                    .timeout(timeout)
+                    .header("Accept", "image/*")
+                    .GET()
+                    .build();
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new ImageGenerationException("下载模型生成的图片时被中断", exception);
+        } catch (IOException | IllegalArgumentException exception) {
+            throw new ImageGenerationException("下载模型生成的图片失败", exception);
+        }
+
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new ImageGenerationException("下载模型生成的图片失败，HTTP 状态码：" + response.statusCode());
+        }
+
+        String contentType = response.headers().firstValue("Content-Type").orElse("");
+        if (!contentType.toLowerCase(Locale.ROOT).startsWith("image/")) {
+            throw new ImageGenerationException("图片 URL 返回的内容不是图片");
+        }
+
+        byte[] imageBytes = response.body();
+        if (imageBytes == null || imageBytes.length == 0) {
+            throw new ImageGenerationException("图片 URL 返回了空图片");
+        }
+        return imageBytes;
     }
 }

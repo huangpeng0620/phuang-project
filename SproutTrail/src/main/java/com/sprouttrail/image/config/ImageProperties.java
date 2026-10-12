@@ -18,7 +18,6 @@ import java.time.Duration;
  * @param baseUrl     OpenAI 或兼容服务的 API 根地址
  * @param model       图片模型名称
  * @param size        生成图片尺寸，MVP 固定为 1024x1024
- * @param quality     图片质量
  * @param storagePath 图片在服务器上的保存目录
  * @param timeout     单次图片生成的最大等待时间
  */
@@ -29,7 +28,6 @@ public record ImageProperties(
         @NotBlank String baseUrl,
         @NotBlank String model,
         @NotBlank String size,
-        @NotBlank String quality,
         @NotNull Path storagePath,
         @NotNull Duration timeout) {
 }
