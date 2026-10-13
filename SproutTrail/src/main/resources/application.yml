@@ -13,7 +13,8 @@ app:
   image:
     api-key: sk-d1e56d0012004a2cbdf6b3ddb2a8cc3d
     base-url: https://llm-yjcrddyghy0vh1ul.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
-    model: qwen-image-3.0
-    size: 1024x1024
-    storage-path: ${IMAGE_STORAGE_PATH:./data/images}
+    image-model: qwen-image-3.0
+    prompt-model: qwen-plus
+    prompt-base-url: https://llm-yjcrddyghy0vh1ul.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+    storage-path: ./data/images
     timeout: 120s

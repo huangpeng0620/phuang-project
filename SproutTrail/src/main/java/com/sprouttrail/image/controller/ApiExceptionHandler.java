@@ -1,11 +1,9 @@
 package com.sprouttrail.image.controller;
 
-import com.sprouttrail.image.exception.ImageGenerationException;
-import com.sprouttrail.image.exception.ImageStorageException;
+import com.sprouttrail.image.exception.ImageWorkflowException;
 import com.sprouttrail.image.model.ApiError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -43,22 +41,15 @@ public class ApiExceptionHandler {
     }
 
     /**
-     * 上游 AI 服务失败时返回 502，表明应用正常但依赖服务未成功响应
+     * 根据统一业务异常携带的状态码和错误码生成错误响应。
      */
-    @ExceptionHandler(ImageGenerationException.class)
-    public ResponseEntity<ApiError> handleImageGeneration(ImageGenerationException exception) {
-        log.error("Image generation failed", exception);
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                .body(ApiError.of("IMAGE_GENERATION_FAILED", "图片生成失败，请稍后重试"));
-    }
-
-    /**
-     * 本地文件系统写入失败时返回服务器错误
-     */
-    @ExceptionHandler(ImageStorageException.class)
-    public ResponseEntity<ApiError> handleImageStorage(ImageStorageException exception) {
-        log.error("Image storage failed", exception);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiError.of("IMAGE_STORAGE_FAILED", "图片已生成，但保存失败"));
+    @ExceptionHandler(ImageWorkflowException.class)
+    public ResponseEntity<ApiError> handleApplication(ImageWorkflowException exception) {
+        // 不输出底层异常详情，避免 SDK 把用户提示词等请求内容写入日志。
+        Throwable cause = exception.getCause();
+        log.error("Application operation failed: code={}, causeType={}",
+                exception.code(), cause == null ? "none" : cause.getClass().getSimpleName());
+        return ResponseEntity.status(exception.status())
+                .body(ApiError.of(exception.code(), exception.userMessage()));
     }
 }

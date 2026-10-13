@@ -2,11 +2,11 @@
 
 ## 1. 第一版范围
 
-用户输入一段文字，点击生成，页面展示图片，并允许下载。后端同时把图片保存到服务器本地目录。
+用户输入一段文字后，可以直接用原文生成，也可以先获取三条可追加的文字建议。用户选中并确认后，后端把原文和补充内容组合起来生成图片，并保存到服务器本地目录。
 
-第一版固定生成一张 `1024x1024` PNG，不提供模型、尺寸、质量、数量等选项。
+第一版生成一张 PNG，支持自动、1:1、16:9、9:16 和 4:3 五种画面比例，不提供模型、质量、数量等选项。
 
-不做以下功能：登录、历史列表、数据库、Redis、消息队列、对象存储、多模型切换、图片编辑、任务轮询、管理后台和付费。
+不做以下功能：登录、历史列表、数据库、Redis、消息队列、对象存储、图片编辑、任务轮询、管理后台和付费。
 
 ## 2. 技术选型
 
@@ -16,7 +16,9 @@
 | 构建 | Maven 3.9+ |
 | Web 框架 | Spring Boot 3.5.16、Spring MVC |
 | AI 框架 | LangChain4j `1.20.2` |
+| Java 样板代码 | Lombok |
 | 图片模型接入 | `langchain4j-open-ai` 的 `OpenAiImageModel` |
+| 提示词建议 | `langchain4j-open-ai` 的 `OpenAiChatModel`，只生成文字建议 |
 | 页面 | HTML、CSS、原生 JavaScript |
 | 图片格式 | PNG |
 | 存储 | 服务器本地目录 |
@@ -40,6 +42,11 @@
         <version>1.20.2</version>
     </dependency>
     <dependency>
+        <groupId>org.projectlombok</groupId>
+        <artifactId>lombok</artifactId>
+        <optional>true</optional>
+    </dependency>
+    <dependency>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-test</artifactId>
         <scope>test</scope>
@@ -47,16 +54,17 @@
 </dependencies>
 ```
 
-不用 LangChain4j 的 Spring Boot starter。图片模型手工配置成一个 Bean 更直接，也不需要引入 AI Services。
+不用 LangChain4j 的 Spring Boot starter。图片模型和文本模型分别手工配置成 Bean；提示词建议不使用 AI Services、Memory 或 Tool。
 
 ## 3. 整体流程
 
 ```text
-浏览器输入文字
-    ↓ POST /api/images/generate
-Spring MVC 校验 prompt
-    ↓
-ImageService 调用 LangChain4j ImageModel.generate(prompt)
+浏览器输入原始提示词
+    ├─ 可选：POST /api/prompts/optimize → 文本模型返回三条追加建议
+    │          用户选择并确认后，页面预览“原文 + 补充内容”
+    └─ POST /api/images/generate（只传原文，或附带已确认的 supplement）
+           ↓ Spring MVC 校验请求
+ImageService 调用 LangChain4j ImageModel.generate(原文 + 已确认的补充内容)
     ↓
 OpenAI 兼容图片接口返回 base64
     ↓
@@ -82,10 +90,17 @@ SproutTrail/
     │   │   ├── config/ImageModelConfig.java
     │   │   ├── config/ImageProperties.java
     │   │   ├── controller/ImageController.java
+    │   │   ├── controller/PromptController.java
     │   │   ├── controller/ApiExceptionHandler.java
+    │   │   ├── exception/ImageWorkflowException.java
     │   │   ├── model/GenerateImageRequest.java
+    │   │   ├── model/ImageAspectRatio.java
+    │   │   ├── model/OptimizePromptRequest.java
+    │   │   ├── model/OptimizePromptResponse.java
+    │   │   ├── model/PromptSuggestion.java
     │   │   ├── model/GeneratedImage.java
-    │   │   └── service/ImageService.java
+    │   │   ├── service/ImageService.java
+    │   │   └── service/PromptOptimizationService.java
     │   └── resources/
     │       ├── application.yml
     │       └── static/
@@ -93,7 +108,9 @@ SproutTrail/
     │           ├── styles.css
     │           └── app.js
     └── test/
-        └── java/com/sprouttrail/image/service/ImageServiceTest.java
+        └── java/com/sprouttrail/image/
+            ├── model/GenerateImageRequestTest.java
+            └── service/PromptOptimizationServiceTest.java
 ```
 
 ## 5. 配置
@@ -113,9 +130,7 @@ app:
   image:
     api-key: ${OPENAI_API_KEY}
     base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
-    model: ${OPENAI_IMAGE_MODEL:gpt-image-2.5-flare}
-    size: 1024x1024
-    quality: medium
+    image-model: ${OPENAI_IMAGE_MODEL:gpt-image-2.5-flare}
     storage-path: ${IMAGE_STORAGE_PATH:./data/images}
     timeout: 120s
 ```
@@ -126,25 +141,28 @@ API Key 只从环境变量读取，不能写进配置文件或前端代码。
 
 ## 6. LangChain4j Bean
 
-`ImageModelConfig` 只创建一个 Bean：
+`ImageModelConfig` 创建文本模型 Bean，并按用户选择的画面比例缓存图片模型。提示词模型默认使用 `qwen-plus`，复用现有图片接口地址和 `app.image.api-key`。`PROMPT_OPTIMIZATION_MODEL` 与 `PROMPT_OPTIMIZATION_BASE_URL` 绑定到 `ImageProperties`，用于调整文本模型。
+
+图片模型选择逻辑：
 
 ```java
-@Bean
-ImageModel imageModel(ImageProperties properties) {
+public ImageModel imageModel(ImageAspectRatio aspectRatio) {
+    return imageModels.computeIfAbsent(aspectRatio, this::createImageModel);
+}
+
+private ImageModel createImageModel(ImageAspectRatio aspectRatio) {
     return OpenAiImageModel.builder()
             .apiKey(properties.apiKey())
             .baseUrl(properties.baseUrl())
-            .modelName(properties.model())
-            .size(properties.size())
-            .quality(properties.quality())
-            .outputFormat("png")
+            .modelName(properties.imageModel())
+            .size(aspectRatio.imageSize())
             .timeout(properties.timeout())
             .maxRetries(1)
             .build();
 }
 ```
 
-`ImageProperties` 使用 `@ConfigurationProperties("app.image")` 映射配置，并在配置类上用 `@EnableConfigurationProperties(ImageProperties.class)` 启用。这里不需要聊天模型、PromptTemplate、Memory、Tool 或 AI Service。
+`ImageProperties` 使用 `@ConfigurationProperties("app.image")` 映射配置。提示词优化使用 LangChain4j `ChatModel` 直接发送一条请求并解析 JSON，不使用 Memory、Tool 或 AI Service。
 
 ## 7. 接口设计
 
@@ -155,19 +173,32 @@ POST /api/images/generate
 Content-Type: application/json
 
 {
-  "prompt": "清晨森林中的玻璃小屋，电影感，写实风格"
+  "prompt": "清晨森林中的玻璃小屋，电影感，写实风格",
+  "supplement": "柔和的晨光穿过树叶",
+  "aspectRatio": "LANDSCAPE"
 }
 ```
 
 请求 DTO：
 
 ```java
-public record GenerateImageRequest(
-        @NotBlank(message = "请输入图片描述")
-        @Size(max = 800, message = "图片描述不能超过 800 个字符")
-        String prompt
-) {}
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+public class GenerateImageRequest {
+    @NotBlank(message = "请输入图片描述")
+    @Size(max = 800, message = "图片描述不能超过 800 个字符")
+    private String prompt;
+
+    @Size(max = 1200, message = "提示词补充内容不能超过 1200 个字符")
+    private String supplement;
+
+    private ImageAspectRatio aspectRatio;
+}
 ```
+
+`aspectRatio` 可取 `AUTO`、`SQUARE`、`LANDSCAPE`、`PORTRAIT`、`LANDSCAPE_4_3`。未传时默认使用 `SQUARE`，兼容旧版请求。
 
 成功时直接返回图片：
 
@@ -192,11 +223,22 @@ X-Image-Filename: b5fd...png
 
 一个 POST 同时完成生成、服务器保存和向浏览器返回图片，不需要额外的任务状态接口或图片查询接口。
 
+### 提示词建议
+
+```http
+POST /api/prompts/optimize
+Content-Type: application/json
+
+{"prompt":"清晨森林中的玻璃小屋"}
+```
+
+返回恰好三条 `{ "title", "supplement" }` 建议。模型只提供可追加内容；页面保留原始输入，用户选择并预览最终提示词后，确认按钮才会调用图片生成接口。
+
 ## 8. 保存图片
 
 `ImageService` 的职责：
 
-1. 调用 `imageModel.generate(prompt.trim())`。
+1. 根据画面比例获取缓存的图片模型并调用 `imageModel.generate(prompt)`；原始输入及用户确认的补充内容不做 trim 或改写。
 2. 读取 `response.content().base64Data()`。
 3. 使用 `Base64.getDecoder().decode(...)` 转成字节。
 4. 确保 `${IMAGE_STORAGE_PATH}` 目录存在。
@@ -204,22 +246,31 @@ X-Image-Filename: b5fd...png
 6. 使用 `Files.write(...)` 保存图片。
 7. 返回图片字节和文件名给 Controller。
 
-建议返回一个简单 record：
+返回一个简单的只读 class：
 
 ```java
-public record GeneratedImage(String filename, byte[] bytes) {}
+@Getter
+@AllArgsConstructor
+public class GeneratedImage {
+    private final String filename;
+    private final byte[] bytes;
+}
 ```
 
 不使用用户输入作为文件名，避免非法字符与路径穿越问题。
 
 ## 9. 前端实现
 
-页面只保留四个核心元素：
+页面使用轻量双栏布局，包含：
 
 - prompt 文本框
-- 生成按钮
+- 自动、1:1、16:9、9:16 和 4:3 画面比例选项
+- “优化提示词”和“使用原文生成”按钮
+- 三条补充建议、选择状态、最终提示词预览和确认生成按钮
 - 生成中状态
 - 图片预览和下载按钮
+
+用户编辑原文后会清除之前的建议，避免过期建议用于新提示词。
 
 请求逻辑：
 
@@ -227,7 +278,7 @@ public record GeneratedImage(String filename, byte[] bytes) {}
 const response = await fetch("/api/images/generate", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ prompt })
+  body: JSON.stringify({ prompt, supplement, aspectRatio })
 });
 
 if (!response.ok) {
@@ -247,6 +298,9 @@ download.download = response.headers.get("X-Image-Filename") ?? "image.png";
 ## 10. 异常与边界
 
 - prompt 为空或超过 800 字符：返回 HTTP 400。
+- 补充内容为空时沿用旧请求行为；补充内容最多 1200 字符。
+- 画面比例为空时默认使用 1:1；不接受预定义枚举之外的任意尺寸。
+- 提示词优化模型失败时返回 HTTP 502，页面仍可直接使用原文生成。
 - AI 服务超时、限流或返回异常：记录 requestId 和异常类型，返回 HTTP 502。
 - 本地磁盘写入失败：返回 HTTP 500。
 - 日志不记录 API Key、base64 数据和完整图片。
@@ -257,8 +311,8 @@ download.download = response.headers.get("X-Image-Filename") ?? "image.png";
 
 只写两类有价值的测试：
 
-1. prompt 为空或超长时，Controller 返回 400。
-2. mock `ImageModel` 返回一段 base64 后，`ImageService` 能生成 PNG 文件并返回相同字节。
+1. 确认补充内容为空时原始提示词保持原样，且补充内容只追加在原文之后。
+2. 校验优化模型的 JSON 响应必须包含恰好三条有效建议。
 
 真实 AI 调用不放进自动化测试，开发时使用一个实际 prompt 做一次冒烟验证即可。
 

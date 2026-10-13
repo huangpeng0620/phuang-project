@@ -52,14 +52,83 @@
               <button type="button" data-prompt="一只戴着圆框眼镜的橘猫程序员，坐在书桌前写代码，温暖插画风格">程序员橘猫</button>
             </div>
 
-            <button class="generate-button" id="generate-button" type="submit" disabled>
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <path d="m10 2 1.1 4.1L15 7.5l-3.9 1.4L10 13 8.9 8.9 5 7.5l3.9-1.4L10 2Z" />
-                <path d="m15.5 12 .7 2.3 2.3.7-2.3.7-.7 2.3-.7-2.3-2.3-.7 2.3-.7.7-2.3Z" />
-              </svg>
-              <span>生成图片</span>
-            </button>
-            <p class="form-note">生成结果会保存到服务器，并可下载到当前设备</p>
+            <fieldset class="ratio-fieldset">
+              <legend>画面比例</legend>
+              <div class="ratio-options">
+                <label class="ratio-option">
+                  <input type="radio" name="aspect-ratio" value="AUTO" />
+                  <span class="ratio-option-content">
+                    <span class="ratio-shape ratio-shape-auto" aria-hidden="true"></span>
+                    <span>自动</span>
+                  </span>
+                </label>
+                <label class="ratio-option">
+                  <input type="radio" name="aspect-ratio" value="SQUARE" checked />
+                  <span class="ratio-option-content">
+                    <span class="ratio-shape ratio-shape-square" aria-hidden="true"></span>
+                    <span>1:1 方图</span>
+                  </span>
+                </label>
+                <label class="ratio-option">
+                  <input type="radio" name="aspect-ratio" value="LANDSCAPE" />
+                  <span class="ratio-option-content">
+                    <span class="ratio-shape ratio-shape-landscape" aria-hidden="true"></span>
+                    <span>16:9 横图</span>
+                  </span>
+                </label>
+                <label class="ratio-option">
+                  <input type="radio" name="aspect-ratio" value="PORTRAIT" />
+                  <span class="ratio-option-content">
+                    <span class="ratio-shape ratio-shape-portrait" aria-hidden="true"></span>
+                    <span>9:16 竖图</span>
+                  </span>
+                </label>
+                <label class="ratio-option">
+                  <input type="radio" name="aspect-ratio" value="LANDSCAPE_4_3" />
+                  <span class="ratio-option-content">
+                    <span class="ratio-shape ratio-shape-four-three" aria-hidden="true"></span>
+                    <span>4:3</span>
+                  </span>
+                </label>
+              </div>
+            </fieldset>
+
+            <div class="action-row">
+              <button class="optimize-button" id="optimize-button" type="button" disabled>
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="m10 2 1.1 4.1L15 7.5l-3.9 1.4L10 13 8.9 8.9 5 7.5l3.9-1.4L10 2Z" />
+                  <path d="m15.5 12 .7 2.3 2.3.7-2.3.7-.7 2.3-.7-2.3-2.3-.7 2.3-.7.7-2.3Z" />
+                </svg>
+                <span>优化提示词</span>
+              </button>
+              <button class="generate-button" id="generate-button" type="submit" disabled>
+                <span>使用原文生成</span>
+              </button>
+            </div>
+            <p class="form-note">原文会保持不变；优化建议需由你选择并确认后才会用于生成</p>
+
+            <section class="suggestion-section" id="suggestion-section" hidden aria-labelledby="suggestion-title">
+              <div class="suggestion-heading">
+                <div>
+                  <span class="section-index">02</span>
+                  <h2 id="suggestion-title">选择一个补充方向</h2>
+                </div>
+                <span class="suggestion-count">3 个建议</span>
+              </div>
+              <p class="suggestion-status" id="suggestion-status" aria-live="polite"></p>
+              <div class="suggestion-options" id="suggestion-options" role="radiogroup" aria-label="提示词补充建议"></div>
+
+              <div class="prompt-preview" id="prompt-preview" hidden>
+                <div class="preview-heading">
+                  <span>最终提示词预览</span>
+                  <span>原文 + 追加内容</span>
+                </div>
+                <pre id="final-prompt"></pre>
+                <button class="confirm-button" id="confirm-generate" type="button" disabled>
+                  确认方案并生成图片
+                </button>
+              </div>
+            </section>
           </form>
         </section>
 
@@ -111,7 +180,7 @@
               </figcaption>
             </figure>
           </div>
-          <p class="canvas-footnote" id="result-status" aria-live="polite">固定生成 1024 × 1024 PNG</p>
+          <p class="canvas-footnote" id="result-status" aria-live="polite">当前选择：1:1 · 1024 × 1024 PNG</p>
         </section>
       </main>
     </div>

@@ -1,36 +1,73 @@
 package com.sprouttrail.image.config;
 
+import com.sprouttrail.image.model.ImageAspectRatio;
+import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.image.ImageModel;
+import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiImageModel;
+import jakarta.annotation.Resource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * LangChain4j 图片模型配置
  *
- * <p>第一版直接创建一个 {@link ImageModel} Bean，避免引入聊天模型、AI Service、
- * Memory、Tool 等文生图流程不需要的能力。
+ * <p>提示词优化复用现有 API Key，并单独配置文本模型名称和兼容接口地址，
+ * 避免影响已有图片模型的服务地址与模型配置。
  */
 @Configuration
 public class ImageModelConfig {
 
+    @Resource
+    private ImageProperties properties;
+
+    private final Map<ImageAspectRatio, ImageModel> imageModels = new ConcurrentHashMap<>();
+
     /**
-     * 创建负责文生图的 LangChain4j 模型
+     * 获取与指定画幅对应的 LangChain4j 图片模型。
      *
-     * <p>模型名称使用字符串配置而不是枚举，原因是图片模型可能先于 LangChain4j
-     * 的枚举版本发布。这样可以通过环境变量升级模型，而无需修改和重新编译代码。
+     * <p>LangChain4j 的图片尺寸配置属于模型实例级参数，因此按照画幅缓存模型，
+     * 避免每次请求都重新创建 HTTP 客户端。
      *
-     * @param properties 图片模型配置
-     * @return 可注入业务服务的图片模型
+     * @param aspectRatio 用户选择的图片画幅
+     * @return 使用对应图片尺寸的模型实例
+     */
+    public ImageModel imageModel(ImageAspectRatio aspectRatio) {
+        return imageModels.computeIfAbsent(aspectRatio, this::createImageModel);
+    }
+
+    private ImageModel createImageModel(ImageAspectRatio aspectRatio) {
+        return OpenAiImageModel.builder()
+                .apiKey(properties.getApiKey())
+                .baseUrl(properties.getBaseUrl())
+                .modelName(properties.getImageModel())
+                .size(aspectRatio.imageSize())
+                .timeout(properties.getTimeout())
+                .maxRetries(1)
+                .build();
+    }
+
+    /**
+     * 创建只用于提示词优化的文本模型
+     *
+     * <p>文本模型名称和接口地址均从 {@link ImageProperties} 读取
+     * 接口地址为空时复用图片模型配置，API Key 始终复用现有值
+     *
+     * @return LangChain4j 聊天模型
      */
     @Bean
-    public ImageModel imageModel(ImageProperties properties) {
-        return OpenAiImageModel.builder()
-                .apiKey(properties.apiKey())
-                .baseUrl(properties.baseUrl())
-                .modelName(properties.model())
-                .size(properties.size())
-                .timeout(properties.timeout())
+    public ChatModel promptOptimizationModel() {
+        String baseUrl = properties.getPromptBaseUrl().isBlank()
+                ? properties.getBaseUrl()
+                : properties.getPromptBaseUrl();
+        return OpenAiChatModel.builder()
+                .apiKey(properties.getApiKey())
+                .baseUrl(baseUrl)
+                .modelName(properties.getPromptModel())
+                .timeout(properties.getTimeout())
                 .maxRetries(1)
                 .build();
     }

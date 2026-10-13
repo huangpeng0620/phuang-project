@@ -3,12 +3,14 @@
 一个基于 Spring Boot、JDK 21、Maven 和 LangChain4j 的轻量文生图应用。
 
 用户输入文字后，后端调用图片模型生成一张 PNG，保存到服务器本地目录，并把图片返回给浏览器预览和下载。
+用户也可以先让文本模型给出三条可追加的提示词建议，选择并确认后再生成；原始输入始终保留，用户也可以直接使用原文生成。
 
 ## 技术栈
 
 - JDK 21
 - Spring Boot 3.5.16
 - Maven
+- Lombok
 - LangChain4j 1.20.2
 - HTML、CSS、原生 JavaScript
 
@@ -27,6 +29,15 @@ export OPENAI_BASE_URL="https://api.openai.com/v1"
 export OPENAI_IMAGE_MODEL="gpt-image-2.5-flare"
 export IMAGE_STORAGE_PATH="./data/images"
 ```
+
+提示词优化默认使用 `qwen-plus`，复用图片模型配置的兼容接口地址和 API Key。若工作空间没有开通该文本模型，或需要指定其他兼容地址，可设置：
+
+```bash
+export PROMPT_OPTIMIZATION_MODEL="qwen-plus"
+export PROMPT_OPTIMIZATION_BASE_URL="你的文本模型兼容接口地址"
+```
+
+这两个值会绑定到 `ImageProperties` 的 `promptModel` 和 `promptBaseUrl`；接口地址留空时沿用图片模型地址。
 
 ## 本地运行
 
@@ -89,14 +100,33 @@ server {
 
 ## API
 
+优化接口只返回三个文字补充建议，不会生成图片：
+
+```http
+POST /api/prompts/optimize
+Content-Type: application/json
+
+{
+  "prompt": "清晨森林中的玻璃小屋"
+}
+```
+
+响应包含 `suggestions` 数组，每一项包含 `title` 和 `supplement`。前端展示建议和完整提示词预览；用户确认后才会调用图片生成接口。
+
+生成接口兼容只传 `prompt` 的旧请求。确认补充建议时，额外传入 `supplement`，服务端会将它追加到原文之后。`aspectRatio` 用于选择画面比例：
+
 ```http
 POST /api/images/generate
 Content-Type: application/json
 
 {
-  "prompt": "清晨森林中的玻璃小屋，电影感，写实风格"
+  "prompt": "清晨森林中的玻璃小屋，电影感，写实风格",
+  "supplement": "柔和的金色晨光，细腻的电影构图",
+  "aspectRatio": "LANDSCAPE"
 }
 ```
+
+画面比例可取 `AUTO`、`SQUARE`、`LANDSCAPE`、`PORTRAIT`、`LANDSCAPE_4_3`；不传时默认使用 `SQUARE`。
 
 成功响应为 `image/png`。失败响应为：
 

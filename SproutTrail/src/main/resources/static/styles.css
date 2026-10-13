@@ -14,6 +14,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -230,6 +234,124 @@ textarea:focus {
   background: rgba(255, 255, 255, 0.5);
 }
 
+/* 图片画幅选择 */
+
+.ratio-fieldset {
+  min-width: 0;
+  margin: 22px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.ratio-fieldset legend {
+  margin-bottom: 10px;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ratio-options {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ratio-option {
+  min-width: 0;
+  cursor: pointer;
+}
+
+.ratio-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.ratio-option-content {
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 5px;
+  border: 1px solid #dce1d8;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.54);
+  color: #667064;
+  font-size: 10px;
+  font-weight: 650;
+  text-align: center;
+  transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
+}
+
+.ratio-option:hover .ratio-option-content {
+  border-color: #aebba2;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.ratio-option input:checked + .ratio-option-content {
+  border-color: #6f8f51;
+  background: rgba(201, 242, 120, 0.24);
+  color: #304229;
+  box-shadow: 0 0 0 2px rgba(111, 143, 81, 0.09);
+}
+
+.ratio-option input:focus-visible + .ratio-option-content {
+  outline: 3px solid rgba(88, 118, 81, 0.24);
+  outline-offset: 2px;
+}
+
+.ratio-option input:disabled + .ratio-option-content {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.ratio-shape {
+  display: block;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+}
+
+.ratio-shape-auto {
+  width: 23px;
+  height: 23px;
+  border-style: dashed;
+  border-radius: 5px;
+}
+
+.ratio-shape-square {
+  width: 23px;
+  height: 23px;
+}
+
+.ratio-shape-landscape {
+  width: 31px;
+  height: 18px;
+}
+
+.ratio-shape-portrait {
+  width: 16px;
+  height: 29px;
+}
+
+.ratio-shape-four-three {
+  width: 28px;
+  height: 21px;
+}
+
+.action-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.optimize-button,
 .generate-button {
   width: 100%;
   height: 54px;
@@ -237,15 +359,30 @@ textarea:focus {
   justify-content: center;
   align-items: center;
   gap: 9px;
-  margin-top: 26px;
   border: 0;
   border-radius: 14px;
-  background: var(--accent);
-  color: #213017;
   cursor: pointer;
   font-weight: 780;
-  box-shadow: 0 10px 22px rgba(93, 121, 59, 0.15);
   transition: transform 0.18s, box-shadow 0.18s, opacity 0.18s;
+}
+
+.optimize-button {
+  border: 1px solid #d4dccd;
+  background: rgba(255, 255, 255, 0.58);
+  color: #46563d;
+  font-size: 12px;
+}
+
+.optimize-button svg {
+  width: 18px;
+  fill: currentColor;
+}
+
+.generate-button {
+  background: var(--accent);
+  color: #213017;
+  box-shadow: 0 10px 22px rgba(93, 121, 59, 0.15);
+  font-size: 13px;
 }
 
 .generate-button svg {
@@ -253,11 +390,21 @@ textarea:focus {
   fill: currentColor;
 }
 
+.optimize-button:hover:not(:disabled),
 .generate-button:hover:not(:disabled) {
   transform: translateY(-1px);
+}
+
+.optimize-button:hover:not(:disabled) {
+  border-color: #aebba2;
+  background: #fff;
+}
+
+.generate-button:hover:not(:disabled) {
   box-shadow: 0 13px 26px rgba(93, 121, 59, 0.22);
 }
 
+.optimize-button:disabled,
 .generate-button:disabled {
   cursor: not-allowed;
   opacity: 0.44;
@@ -265,10 +412,150 @@ textarea:focus {
 }
 
 .form-note {
-  margin: 9px 0 0;
+  margin: 10px 0 0;
   color: #959b93;
-  text-align: center;
+  text-align: left;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+/* 用户可选的追加建议和最终提示词确认 */
+
+.suggestion-section {
+  margin-top: 25px;
+  padding-top: 19px;
+  border-top: 1px solid rgba(24, 32, 27, 0.12);
+}
+
+.suggestion-heading,
+.suggestion-heading > div,
+.preview-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.suggestion-heading > div {
+  justify-content: flex-start;
+  gap: 9px;
+}
+
+.suggestion-count,
+.preview-heading span:last-child {
+  color: #929890;
   font-size: 10px;
+}
+
+.suggestion-status {
+  min-height: 18px;
+  margin: 9px 0 10px;
+  color: #7b8477;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.suggestion-options {
+  display: grid;
+  gap: 8px;
+}
+
+.suggestion-card {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 13px;
+  border: 1px solid #dce1d8;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.48);
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
+}
+
+.suggestion-card:hover {
+  border-color: #aebba2;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.suggestion-card.is-selected {
+  border-color: #829d68;
+  background: #fbfff5;
+  box-shadow: 0 0 0 3px rgba(125, 160, 91, 0.1);
+}
+
+.suggestion-card input {
+  flex: 0 0 auto;
+  margin: 3px 0 0;
+  accent-color: #587651;
+}
+
+.suggestion-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.suggestion-copy strong {
+  color: #354331;
+  font-size: 12px;
+}
+
+.suggestion-copy > span {
+  color: #747d72;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.prompt-preview {
+  margin-top: 15px;
+  padding: 13px;
+  border: 1px solid #dce1d8;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.preview-heading {
+  gap: 10px;
+  color: #596454;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.prompt-preview pre {
+  max-height: 180px;
+  overflow: auto;
+  margin: 10px 0 12px;
+  padding: 10px;
+  border-radius: 8px;
+  color: #515a4e;
+  background: rgba(236, 240, 231, 0.8);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.confirm-button {
+  width: 100%;
+  min-height: 43px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 10px;
+  color: #f8faF5;
+  background: #36523a;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  transition: background 0.18s, opacity 0.18s;
+}
+
+.confirm-button:hover:not(:disabled) {
+  background: #263f2c;
+}
+
+.confirm-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 /* 图片结果区 */
@@ -490,7 +777,7 @@ h2 {
   width: 100%;
   height: 100%;
   display: block;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .result-figure figcaption {
@@ -575,6 +862,24 @@ h2 {
 
   .examples span {
     width: 100%;
+  }
+
+  .ratio-options {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .action-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-top: 20px;
+  }
+
+  .optimize-button {
+    height: 47px;
+  }
+
+  .generate-button {
+    height: 51px;
   }
 
   .canvas-stage {
