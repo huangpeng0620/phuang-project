@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN" class="auth-checking">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="登录 SproutTrail 图片创作工作台" />
+    <title>登录 · SproutTrail</title>
+    <link rel="stylesheet" href="login.css" />
+  </head>
+  <body>
+    <main class="login-page">
+      <section class="login-card" aria-labelledby="login-title">
+        <a class="brand" href="/login.html" aria-label="SproutTrail 登录页">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32">
+              <path d="M16 25V14" />
+              <path d="M16 17C11 17 8 14 8 9c5 0 8 3 8 8Z" />
+              <path d="M16 13c0-5 3-8 8-8 0 5-3 8-8 8Z" />
+            </svg>
+          </span>
+          <span>SproutTrail</span>
+        </a>
+
+        <div class="login-heading">
+          <span class="eyebrow">YOUR CREATIVE WORKSPACE</span>
+          <h1 id="login-title">欢迎回来</h1>
+          <p>登录后继续创作，把灵感变成画面。</p>
+        </div>
+
+        <form id="login-form">
+          <label class="field-label" for="username">用户名</label>
+          <input
+            id="username"
+            name="username"
+            type="text"
+            autocomplete="username"
+            maxlength="64"
+            placeholder="请输入用户名"
+            required
+          />
+
+          <label class="field-label password-label" for="password">密码</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            maxlength="72"
+            placeholder="请输入密码"
+            required
+          />
+
+          <p class="login-error" id="login-error" role="alert" aria-live="polite"></p>
+          <button class="login-button" id="login-button" type="submit">
+            <span>登录工作台</span>
+            <span aria-hidden="true">→</span>
+          </button>
+        </form>
+
+        <p class="login-footnote">你的创作空间，已为你准备好。</p>
+      </section>
+      <div class="ambient-shape ambient-shape-one" aria-hidden="true"></div>
+      <div class="ambient-shape ambient-shape-two" aria-hidden="true"></div>
+    </main>
+    <script src="login.js"></script>
+  </body>
+</html>
