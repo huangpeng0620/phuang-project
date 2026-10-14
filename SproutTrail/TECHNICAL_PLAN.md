@@ -7,7 +7,7 @@
 第一版生成一张 PNG，支持自动、1:1、16:9、9:16 和 4:3 五种画面比例，不提供模型、质量、数量等选项。
 图片优化模式支持单张 JPG/PNG 上传和文字编辑要求，一次生成一张 PNG，并提供原图与结果切换。
 
-不做以下功能：登录、历史列表、数据库、Redis、消息队列、多图编辑、局部涂抹、任务轮询、管理后台和付费。
+文生图成功记录写入 MySQL，但第一版不提供历史列表。暂不做登录、Redis、消息队列、多图编辑、局部涂抹、任务轮询、管理后台和付费。
 
 ## 2. 技术选型
 
@@ -23,7 +23,7 @@
 | 提示词建议 | `langchain4j-open-ai` 的 `OpenAiChatModel`，只生成文字建议 |
 | 页面 | HTML、CSS、原生 JavaScript |
 | 图片格式 | PNG |
-| 存储 | MinIO |
+| 存储 | 图片存 MinIO，生成记录存 MySQL |
 | 部署 | 可执行 jar，生产环境前置 Nginx |
 
 只引入这些 Maven 依赖：
@@ -39,6 +39,11 @@
         <artifactId>spring-boot-starter-validation</artifactId>
     </dependency>
     <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+        <version>3.5.17</version>
+    </dependency>
+    <dependency>
         <groupId>dev.langchain4j</groupId>
         <artifactId>langchain4j-open-ai</artifactId>
         <version>1.20.2</version>
@@ -52,6 +57,11 @@
         <groupId>io.minio</groupId>
         <artifactId>minio</artifactId>
         <version>8.5.1</version>
+    </dependency>
+    <dependency>
+        <groupId>com.mysql</groupId>
+        <artifactId>mysql-connector-j</artifactId>
+        <scope>runtime</scope>
     </dependency>
     <dependency>
         <groupId>org.springframework.boot</groupId>
@@ -77,6 +87,7 @@ OpenAI 兼容图片接口返回 base64
     ↓
 后端解码为 PNG
     ├─ 上传到 MinIO，使用 {uuid}.png 作为对象名
+    ├─ 将原始提示词、最终提示词、MinIO 地址和画幅写入 MySQL
     └─ 将 PNG 二进制返回浏览器
           ↓
 页面使用 Blob URL 展示，下载按钮保存到用户电脑
@@ -108,11 +119,14 @@ SproutTrail/
     │   │   ├── model/OptimizePromptResponse.java
     │   │   ├── model/PromptSuggestion.java
     │   │   ├── model/GeneratedImage.java
+    │   │   ├── model/ImageGenerationRecord.java
+    │   │   ├── mapper/ImageGenerationRecordMapper.java
     │   │   ├── service/ImageService.java
     │   │   ├── service/MinioService.java
     │   │   └── service/PromptOptimizationService.java
     │   └── resources/
     │       ├── application.yml
+    │       ├── schema.sql
     │       └── static/
     │           ├── index.html
     │           ├── styles.css
@@ -263,8 +277,10 @@ Content-Type: application/json
 2. 读取 `response.content().base64Data()`。
 3. 使用 `Base64.getDecoder().decode(...)` 转成字节。
 4. 使用 `UUID.randomUUID() + ".png"` 作为 MinIO 对象名。
-5. 调用 `MinioService.uploadFile(objectName, bytes, "image/png")` 上传图片。
-6. 返回图片字节和对象名给 Controller，供页面预览和下载。
+5. 调用 `MinioService.uploadFile(objectName, bytes, "image/png")` 上传图片并取得 MinIO 地址。
+6. 对文生图请求，将原始提示词、最终提示词、MinIO 地址及画幅写入 `image_generation_record`。
+7. 数据库写入失败时尝试删除刚上传的 MinIO 对象，再返回错误。
+8. 返回图片字节和对象名给 Controller，供页面预览和下载。
 
 返回一个简单的只读 class：
 

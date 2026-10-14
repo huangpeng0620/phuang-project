@@ -4,12 +4,15 @@
 
 用户输入文字后，后端调用图片模型生成一张 PNG，上传到 MinIO，并把图片返回给浏览器预览和下载。
 用户也可以先让文本模型给出三条可追加的提示词建议，选择并确认后再生成；原始输入始终保留，用户也可以直接使用原文生成。
+文生图成功后，应用会把原始提示词、最终提示词、MinIO 图片地址、画幅和生成时间保存到 MySQL 的 `image_generation_record` 表。
 切换到“图片优化”后，可以上传单张 JPG/PNG、输入编辑要求并生成新图片；支持原图与结果切换对比和下载。
 
 ## 技术栈
 
 - JDK 21
 - Spring Boot 3.5.16
+- MySQL
+- MyBatis-Plus
 - Maven
 - Lombok
 - LangChain4j 1.20.2
@@ -55,6 +58,7 @@ http://localhost:8080
 ```
 
 生成结果会上传到 `application.yml` 中配置的 MinIO bucket。
+MySQL 连接配置位于 `application.yml` 的 `spring.datasource` 下；应用启动时会自动创建缺少的记录表。
 
 ## Linux 服务器部署
 

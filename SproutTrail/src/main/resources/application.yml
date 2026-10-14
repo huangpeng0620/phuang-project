@@ -2,6 +2,16 @@ server:
   port: 8080
 
 spring:
+  # MySQL 连接信息
+  datasource:
+    url: jdbc:mysql://8.136.10.85:3306/sprouttrail?useUnicode=true&characterEncoding=UTF-8
+    username: root
+    password: Hya260511
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      # schema.sql 使用 IF NOT EXISTS，只在启动时创建缺失的表。
+      mode: always
   servlet:
     multipart:
       max-file-size: 5MB

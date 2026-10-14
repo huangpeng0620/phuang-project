@@ -39,7 +39,7 @@ public class ImageController {
     @PostMapping(value = "/generate", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<byte[]> generate(@Valid @RequestBody GenerateImageRequest request) {
         GeneratedImage generatedImage = imageService.generate(
-                request.effectivePrompt(), request.effectiveAspectRatio());
+                request.getPrompt(), request.effectivePrompt(), request.effectiveAspectRatio());
         return imageResponse(generatedImage);
     }
 

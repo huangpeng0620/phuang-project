@@ -15,4 +15,7 @@ public class GeneratedImage {
 
     /** 返回给浏览器用于预览和下载的 PNG 字节。 */
     private final byte[] bytes;
+
+    /** 上传成功后由 MinIO 服务返回的图片地址。 */
+    private final String minioUrl;
 }
