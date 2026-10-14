@@ -1,7 +1,7 @@
 package com.sprouttrail.image.controller;
 
-import com.sprouttrail.image.model.OptimizePromptRequest;
-import com.sprouttrail.image.model.OptimizePromptResponse;
+import com.sprouttrail.image.model.request.OptimizePromptRequest;
+import com.sprouttrail.image.model.response.OptimizePromptResponse;
 import com.sprouttrail.image.service.PromptOptimizationService;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;

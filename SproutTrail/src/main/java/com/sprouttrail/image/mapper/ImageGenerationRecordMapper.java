@@ -1,7 +1,7 @@
 package com.sprouttrail.image.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.sprouttrail.image.model.ImageGenerationRecord;
+import com.sprouttrail.image.model.entity.ImageGenerationRecord;
 import org.apache.ibatis.annotations.Mapper;
 
 /**

@@ -1,8 +1,8 @@
 package com.sprouttrail.image.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sprouttrail.image.model.ImageAspectRatio;
-import com.sprouttrail.image.model.QwenImageModel;
+import com.sprouttrail.image.model.enums.ImageAspectRatio;
+import com.sprouttrail.image.model.adapter.QwenImageModel;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.image.ImageModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;

@@ -2,11 +2,11 @@ package com.sprouttrail.image.service.impl;
 
 import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.sprouttrail.image.model.GeneratedImage;
-import com.sprouttrail.image.model.ImageAspectRatio;
-import com.sprouttrail.image.model.ImageGenerationRecord;
 import com.sprouttrail.image.mapper.UserMapper;
-import com.sprouttrail.image.model.User;
+import com.sprouttrail.image.model.entity.User;
+import com.sprouttrail.image.model.request.LoginRequest;
+import com.sprouttrail.image.model.response.LoginResponse;
+import com.sprouttrail.image.model.response.TokenResponse;
 import com.sprouttrail.image.service.UserAuthService;
 import jakarta.annotation.Resource;
 import org.springframework.http.HttpStatus;
@@ -26,7 +26,7 @@ public class UserAuthServiceImpl implements UserAuthService {
 
     /** {@inheritDoc} */
     @Override
-    public ImageGenerationRecord.LoginResponse login(GeneratedImage.LoginRequest request) {
+    public LoginResponse login(LoginRequest request) {
         String username = request.getUsername().trim();
         User user = userMapper.selectOne(new LambdaQueryWrapper<User>()
                 .eq(User::getUsername, username));
@@ -38,7 +38,7 @@ public class UserAuthServiceImpl implements UserAuthService {
         }
 
         StpUtil.login(user.getId());
-        return new ImageGenerationRecord.LoginResponse(StpUtil.getTokenName(), StpUtil.getTokenValue(),
+        return new LoginResponse(StpUtil.getTokenName(), StpUtil.getTokenValue(),
                 user.getId(), user.getUsername(), StpUtil.getTokenTimeout());
     }
 
@@ -50,7 +50,7 @@ public class UserAuthServiceImpl implements UserAuthService {
 
     /** {@inheritDoc} */
     @Override
-    public ImageAspectRatio.TokenResponse getCurrentToken() {
+    public TokenResponse getCurrentToken() {
         Long userId = StpUtil.getLoginIdAsLong();
         User user = userMapper.selectById(userId);
 
@@ -60,7 +60,7 @@ public class UserAuthServiceImpl implements UserAuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "登录状态已失效，请重新登录");
         }
 
-        return new ImageAspectRatio.TokenResponse(StpUtil.getTokenName(), StpUtil.getTokenValue(),
+        return new TokenResponse(StpUtil.getTokenName(), StpUtil.getTokenValue(),
                 user.getId(), user.getUsername(), StpUtil.getTokenTimeout());
     }
 }

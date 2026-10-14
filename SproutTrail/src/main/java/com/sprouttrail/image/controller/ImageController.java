@@ -1,8 +1,10 @@
 package com.sprouttrail.image.controller;
 
-import com.sprouttrail.image.model.*;
+import com.sprouttrail.image.model.enums.ImageAspectRatio;
+import com.sprouttrail.image.model.request.EditImageRequest;
+import com.sprouttrail.image.model.request.GenerateImageRequest;
+import com.sprouttrail.image.model.response.GeneratedImage;
 import com.sprouttrail.image.service.ImageService;
-import com.sprouttrail.image.service.UserAuthService;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.http.CacheControl;

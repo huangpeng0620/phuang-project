@@ -1,6 +1,6 @@
 package com.sprouttrail.image.service;
 
-import com.sprouttrail.image.model.OptimizePromptResponse;
+import com.sprouttrail.image.model.response.OptimizePromptResponse;
 
 /**
  * 定义提示词优化建议的业务操作。

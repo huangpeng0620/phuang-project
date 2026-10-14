@@ -1,9 +1,9 @@
 package com.sprouttrail.image.controller;
 
 
-import com.sprouttrail.image.model.GeneratedImage;
-import com.sprouttrail.image.model.ImageAspectRatio;
-import com.sprouttrail.image.model.ImageGenerationRecord;
+import com.sprouttrail.image.model.request.LoginRequest;
+import com.sprouttrail.image.model.response.LoginResponse;
+import com.sprouttrail.image.model.response.TokenResponse;
 import com.sprouttrail.image.service.UserAuthService;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
@@ -28,7 +28,7 @@ public class UserAuthController {
      * @return
      */
     @PostMapping(value = "/login", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ImageGenerationRecord.LoginResponse> login(@Valid @RequestBody GeneratedImage.LoginRequest request) {
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(userAuthService.login(request));
@@ -47,7 +47,7 @@ public class UserAuthController {
      * @return
      */
     @GetMapping("/token")
-    public ResponseEntity<ImageAspectRatio.TokenResponse> getToken() {
+    public ResponseEntity<TokenResponse> getToken() {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(userAuthService.getCurrentToken());

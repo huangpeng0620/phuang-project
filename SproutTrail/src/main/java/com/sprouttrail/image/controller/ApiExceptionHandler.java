@@ -2,7 +2,7 @@ package com.sprouttrail.image.controller;
 
 import cn.dev33.satoken.exception.NotLoginException;
 import com.sprouttrail.image.exception.ImageWorkflowException;
-import com.sprouttrail.image.model.ApiError;
+import com.sprouttrail.image.model.response.ApiError;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;

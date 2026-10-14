@@ -1,7 +1,7 @@
 package com.sprouttrail.image.service;
 
-import com.sprouttrail.image.model.GeneratedImage;
-import com.sprouttrail.image.model.ImageAspectRatio;
+import com.sprouttrail.image.model.response.GeneratedImage;
+import com.sprouttrail.image.model.enums.ImageAspectRatio;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
