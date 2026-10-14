@@ -5,14 +5,18 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.sprouttrail.image.mapper.UserMapper;
 import com.sprouttrail.image.model.entity.User;
 import com.sprouttrail.image.model.request.LoginRequest;
+import com.sprouttrail.image.model.request.RegisterRequest;
 import com.sprouttrail.image.model.response.LoginResponse;
 import com.sprouttrail.image.model.response.TokenResponse;
 import com.sprouttrail.image.service.UserAuthService;
 import jakarta.annotation.Resource;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.nio.charset.StandardCharsets;
 
 /** 用户名密码校验及 Sa-Token 会话操作的默认实现。 */
 @Service
@@ -23,6 +27,35 @@ public class UserAuthServiceImpl implements UserAuthService {
 
     @Resource
     private PasswordEncoder passwordEncoder;
+
+    /** {@inheritDoc} */
+    @Override
+    public void register(RegisterRequest request) {
+        String username = request.getUsername().trim();
+        String password = request.getPassword();
+
+        if (username.length() < 3 || username.length() > 64) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "用户名长度需为 3～64 个字符");
+        }
+        if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "密码不能超过 72 个字节");
+        }
+        if (userMapper.selectCount(new LambdaQueryWrapper<User>()
+                .eq(User::getUsername, username)) > 0) {
+            throw usernameAlreadyExists();
+        }
+
+        User user = new User();
+        user.setUsername(username);
+        user.setPasswordHash(passwordEncoder.encode(password));
+        user.setStatus(1);
+        try {
+            userMapper.insert(user);
+        } catch (DuplicateKeyException exception) {
+            // 数据库唯一索引处理并发注册时的用户名冲突。
+            throw usernameAlreadyExists();
+        }
+    }
 
     /** {@inheritDoc} */
     @Override
@@ -62,5 +95,9 @@ public class UserAuthServiceImpl implements UserAuthService {
 
         return new TokenResponse(StpUtil.getTokenName(), StpUtil.getTokenValue(),
                 user.getId(), user.getUsername(), StpUtil.getTokenTimeout());
+    }
+
+    private ResponseStatusException usernameAlreadyExists() {
+        return new ResponseStatusException(HttpStatus.CONFLICT, "该用户名已被注册");
     }
 }

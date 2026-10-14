@@ -1,11 +1,15 @@
 package com.sprouttrail.image.service;
 
 import com.sprouttrail.image.model.request.LoginRequest;
+import com.sprouttrail.image.model.request.RegisterRequest;
 import com.sprouttrail.image.model.response.LoginResponse;
 import com.sprouttrail.image.model.response.TokenResponse;
 
-/** 用户登录与会话管理服务。 */
+/** 用户注册、登录与会话管理服务。 */
 public interface UserAuthService {
+
+    /** 创建启用状态的新用户，并使用 BCrypt 保存密码哈希。 */
+    void register(RegisterRequest request);
 
     /** 校验用户名和密码，并创建 Sa-Token 登录会话。 */
     LoginResponse login(LoginRequest request);

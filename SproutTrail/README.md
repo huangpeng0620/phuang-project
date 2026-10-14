@@ -103,7 +103,7 @@ server {
 
 ### 用户登录
 
-启动后访问 `http://localhost:8080/login.html`，使用数据库中已创建的用户名和密码登录。当前版本不提供注册接口；`schema.sql` 会创建 `user` 表，需由部署者为该表添加至少一个启用用户，`password_hash` 必须是 BCrypt 哈希。
+启动后访问 `http://localhost:8080/login.html`，可以登录已有账号，也可以通过“立即注册”创建账号。注册时用户名长度为 3～64 个字符，密码至少 8 个字符；密码使用 BCrypt 哈希保存。`schema.sql` 会创建 `user` 表。
 
 登录相关接口如下：
 
@@ -116,6 +116,8 @@ Content-Type: application/json
   "password": "your-password"
 }
 ```
+
+注册接口为 `POST /api/auth/register`，请求字段同样为 `username` 和 `password`。注册成功返回 HTTP 201；新账号需要再通过登录接口获取 token。
 
 成功响应包含 `tokenName`、`tokenValue`、用户 ID 和 token 有效期。后续请求需要在 `satoken` 请求头中携带 `tokenValue`。`POST /api/auth/logout` 注销当前会话；`GET /api/auth/token` 查询当前 token 和用户信息。图片生成、图片优化及提示词优化接口都要求登录。
 
