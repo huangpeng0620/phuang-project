@@ -82,7 +82,8 @@ public class ImageHistoryServiceImpl implements ImageHistoryService {
                 throw new ImageWorkflowException("IMAGE_STORAGE_FAILED", HttpStatus.BAD_GATEWAY,
                         "图片地址无效，暂时无法下载");
             }
-            try (InputStream stream = minioService.downloadFile(filename)) {
+            String objectName = userId + "/" + filename;
+            try (InputStream stream = minioService.downloadFile(objectName)) {
                 return new GeneratedImage(filename, stream.readAllBytes(), record.getMinioImageUrl());
             }
         } catch (ImageWorkflowException exception) {
@@ -138,7 +139,8 @@ public class ImageHistoryServiceImpl implements ImageHistoryService {
                 throw new ImageWorkflowException("IMAGE_STORAGE_FAILED", HttpStatus.BAD_GATEWAY,
                         "图片地址无效，暂时无法下载");
             }
-            try (InputStream stream = minioService.downloadFile(filename)) {
+            String objectName = userId + "/" + filename;
+            try (InputStream stream = minioService.downloadFile(objectName)) {
                 return new GeneratedImage(filename, stream.readAllBytes(), record.getResultImageUrl());
             }
         } catch (ImageWorkflowException exception) {

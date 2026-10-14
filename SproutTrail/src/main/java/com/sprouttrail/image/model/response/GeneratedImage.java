@@ -4,7 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * 已生成并上传 MinIO 的图片。
+ * 已生成并上传 MinIO 的图片
  */
 @Getter
 @AllArgsConstructor

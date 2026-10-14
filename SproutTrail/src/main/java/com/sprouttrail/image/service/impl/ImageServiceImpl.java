@@ -92,11 +92,12 @@ public class ImageServiceImpl implements ImageService {
     public GeneratedImage generate(String originalPrompt, String optimizedPrompt,
                                    ImageAspectRatio aspectRatio) {
         long startedAt = System.nanoTime();
+        Long userId = StpUtil.getLoginIdAsLong();
         // 保留调用方传入的全部字符；提示词的前后空白也可能是用户有意输入的内容。
         Image image = callImageModel(optimizedPrompt, aspectRatio);
-        GeneratedImage generatedImage = saveImage(image, startedAt);
+        GeneratedImage generatedImage = saveImage(image, startedAt, userId);
         ImageGenerationRecord record = ImageGenerationRecord.builder()
-                .userId(StpUtil.getLoginIdAsLong())
+                .userId(userId)
                 .originalPrompt(originalPrompt)
                 .optimizedPrompt(optimizedPrompt)
                 .minioImageUrl(generatedImage.getMinioUrl())
@@ -107,7 +108,7 @@ public class ImageServiceImpl implements ImageService {
     }
 
     /**
-     * 基于上传的原图进行编辑，并复用文生图的结果下载和 MinIO 上传流程。
+     * 基于上传的原图进行编辑，并复用文生图的结果下载和 MinIO 上传流程
      *
      * @param upload 本次上传的单张原图
      * @param prompt 用户确认的编辑要求
@@ -116,10 +117,12 @@ public class ImageServiceImpl implements ImageService {
      */
     @Override
     public GeneratedImage edit(MultipartFile upload, String prompt, ImageAspectRatio aspectRatio) {
+        Long userId = StpUtil.getLoginIdAsLong();
         Image originalImage = readUploadedImage(upload);
         String sourceExtension = "image/jpeg".equals(originalImage.mimeType()) ? ".jpg" : ".png";
         String sourceFilename = UUID.randomUUID() + sourceExtension;
-        String sourceImageUrl = uploadSourceImage(originalImage, sourceFilename);
+        String sourceObjectName = userId + "/" + sourceFilename;
+        String sourceImageUrl = uploadSourceImage(originalImage, sourceObjectName);
         long startedAt = System.nanoTime();
         GeneratedImage generatedImage;
         try {
@@ -127,21 +130,21 @@ public class ImageServiceImpl implements ImageService {
             if (response == null || response.content() == null) {
                 throw new IllegalStateException("Image editing returned no image");
             }
-            generatedImage = saveImage(response.content(), startedAt);
+            generatedImage = saveImage(response.content(), startedAt, userId);
         } catch (ImageWorkflowException exception) {
-            deleteUploadedSource(sourceFilename);
+            deleteUploadedSource(sourceObjectName);
             // 下载结果失败属于图片编辑失败，存储和模型返回的明确错误则保持原错误码。
             if (!"IMAGE_GENERATION_FAILED".equals(exception.code())) {
                 throw exception;
             }
             throw imageEditFailure(exception);
         } catch (RuntimeException exception) {
-            deleteUploadedSource(sourceFilename);
+            deleteUploadedSource(sourceObjectName);
             throw imageEditFailure(exception);
         }
 
         ImageOptimizationRecord record = ImageOptimizationRecord.builder()
-                .userId(StpUtil.getLoginIdAsLong())
+                .userId(userId)
                 .sourceImageUrl(sourceImageUrl)
                 .prompt(prompt)
                 .resultImageUrl(generatedImage.getMinioUrl())
@@ -152,7 +155,7 @@ public class ImageServiceImpl implements ImageService {
     }
 
     /** 将经过实际格式校验的原图上传至 MinIO，并返回持久地址。 */
-    private String uploadSourceImage(Image image, String filename) {
+    private String uploadSourceImage(Image image, String objectName) {
         byte[] imageBytes;
         try {
             imageBytes = Base64.getDecoder().decode(image.base64Data());
@@ -161,7 +164,7 @@ public class ImageServiceImpl implements ImageService {
         }
 
         try {
-            return minioService.uploadFile(filename, imageBytes, image.mimeType());
+            return minioService.uploadFile(objectName, imageBytes, image.mimeType());
         } catch (Exception exception) {
             throw new ImageWorkflowException("IMAGE_STORAGE_FAILED", HttpStatus.INTERNAL_SERVER_ERROR,
                     "原图上传到 MinIO 失败", exception);
@@ -169,11 +172,11 @@ public class ImageServiceImpl implements ImageService {
     }
 
     /** 图片编辑失败时清理已上传的原图，避免留下无记录的 MinIO 对象。 */
-    private void deleteUploadedSource(String filename) {
+    private void deleteUploadedSource(String objectName) {
         try {
-            minioService.deleteFile(filename);
+            minioService.deleteFile(objectName);
         } catch (Exception exception) {
-            log.warn("Failed to remove source image after image editing failed: filename={}", filename,
+            log.warn("Failed to remove source image after image editing failed: objectName={}", objectName,
                     exception);
         }
     }
@@ -234,13 +237,20 @@ public class ImageServiceImpl implements ImageService {
         }
     }
 
-    /** 文生图与图片编辑共用结果读取、UUID 命名和 MinIO 上传规则。 */
-    private GeneratedImage saveImage(Image image, long startedAt) {
+    /**
+     * 文生图与图片编辑共用结果读取、UUID 命名和 MinIO 上传规则
+     * @param image
+     * @param startedAt
+     * @param userId
+     * @return
+     */
+    private GeneratedImage saveImage(Image image, long startedAt, Long userId) {
         byte[] imageBytes = decodeImage(image);
         String filename = UUID.randomUUID() + ".png";
+        String objectName = userId + "/" + filename;
         String minioUrl;
         try {
-            minioUrl = minioService.uploadFile(filename, imageBytes, MediaType.IMAGE_PNG_VALUE);
+            minioUrl = minioService.uploadFile(objectName, imageBytes, MediaType.IMAGE_PNG_VALUE);
         } catch (Exception exception) {
             throw new ImageWorkflowException("IMAGE_STORAGE_FAILED", HttpStatus.INTERNAL_SERVER_ERROR,
                     "图片已生成，但上传到 MinIO 失败", exception);
