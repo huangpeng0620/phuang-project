@@ -2,8 +2,9 @@
 
 一个基于 Spring Boot、JDK 21、Maven 和 LangChain4j 的轻量文生图应用。
 
-用户输入文字后，后端调用图片模型生成一张 PNG，保存到服务器本地目录，并把图片返回给浏览器预览和下载。
+用户输入文字后，后端调用图片模型生成一张 PNG，上传到 MinIO，并把图片返回给浏览器预览和下载。
 用户也可以先让文本模型给出三条可追加的提示词建议，选择并确认后再生成；原始输入始终保留，用户也可以直接使用原文生成。
+切换到“图片优化”后，可以上传单张 JPG/PNG、输入编辑要求并生成新图片；支持原图与结果切换对比和下载。
 
 ## 技术栈
 
@@ -27,7 +28,6 @@ export OPENAI_API_KEY="你的 API Key"
 ```bash
 export OPENAI_BASE_URL="https://api.openai.com/v1"
 export OPENAI_IMAGE_MODEL="gpt-image-2.5-flare"
-export IMAGE_STORAGE_PATH="./data/images"
 ```
 
 提示词优化默认使用 `qwen-plus`，复用图片模型配置的兼容接口地址和 API Key。若工作空间没有开通该文本模型，或需要指定其他兼容地址，可设置：
@@ -54,11 +54,7 @@ java -jar target/sprouttrail.jar
 http://localhost:8080
 ```
 
-生成的图片默认保存在：
-
-```text
-./data/images
-```
+生成结果会上传到 `application.yml` 中配置的 MinIO bucket。
 
 ## Linux 服务器部署
 
@@ -69,13 +65,12 @@ mvn clean package
 scp target/sprouttrail.jar user@your-server:~/sprouttrail.jar
 ```
 
-SSH 登录服务器，将 jar 放到应用目录，设置 API Key 和图片保存目录后启动：
+SSH 登录服务器，将 jar 放到应用目录，确认 API Key 和 MinIO 连接配置后启动：
 
 ```bash
-mkdir -p "$HOME/sprouttrail/images"
+mkdir -p "$HOME/sprouttrail"
 mv "$HOME/sprouttrail.jar" "$HOME/sprouttrail/sprouttrail.jar"
 export OPENAI_API_KEY="你的 API Key"
-export IMAGE_STORAGE_PATH="$HOME/sprouttrail/images"
 java -jar "$HOME/sprouttrail/sprouttrail.jar"
 ```
 
@@ -85,6 +80,8 @@ java -jar "$HOME/sprouttrail/sprouttrail.jar"
 server {
     listen 443 ssl;
     server_name image.example.com;
+    # 单张原图最多 5MB，为 multipart 表单字段预留空间。
+    client_max_body_size 6m;
 
     location / {
         proxy_pass http://127.0.0.1:8080;
@@ -92,8 +89,8 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 180s;
-        proxy_send_timeout 180s;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
     }
 }
 ```
@@ -111,7 +108,7 @@ Content-Type: application/json
 }
 ```
 
-响应包含 `suggestions` 数组，每一项包含 `title` 和 `supplement`。前端展示建议和完整提示词预览；用户确认后才会调用图片生成接口。
+响应包含 `suggestions` 数组，每一项包含 `title` 和 `supplement`。用户选择建议后，可以继续编辑补充内容；原始提示词保持只读，页面会实时展示完整提示词，确认后才会调用图片生成接口。
 
 生成接口兼容只传 `prompt` 的旧请求。确认补充建议时，额外传入 `supplement`，服务端会将它追加到原文之后。`aspectRatio` 用于选择画面比例：
 
@@ -127,6 +124,29 @@ Content-Type: application/json
 ```
 
 画面比例可取 `AUTO`、`SQUARE`、`LANDSCAPE`、`PORTRAIT`、`LANDSCAPE_4_3`；不传时默认使用 `SQUARE`。
+
+### 图片优化
+
+图片优化复用当前 `qwen-image-3.0` 配置。上传和编辑要求在一次请求中提交，不需要先上传到 OSS：
+
+```bash
+curl http://localhost:8080/api/images/edit \
+  -F 'image=@/你的路径/original.png' \
+  -F 'prompt=保留狗、树和骨头及原有动作关系，改善光线，突出毛发细节' \
+  -F 'aspectRatio=AUTO' \
+  --output edited.png
+```
+
+- 仅支持 JPG/PNG，单张不超过 5MB；宽高各不超过 8000 像素、总像素不超过 1600 万、长边不超过短边的 10 倍。
+- 编辑要求必填，最多 800 字符；比例未传时默认 `AUTO`，其余值与文生图一致。
+- 编辑要求原样提交，显式关闭模型侧的提示词改写（`prompt_extend=false`）。
+- 上传原图不长期保存，仅持久保存生成结果；页面可以切换原图与优化结果，下载按钮始终保存生成结果。
+- `QwenImageModel` 实现 LangChain4j `ImageModel`，使用 `/images/generations` 的 JSON `image` 扩展字段进行编辑；文生图仍委托 `OpenAiImageModel`。
+- 模型编辑请求不自动重试；结果不是逐像素修图，未指定的细节仍可能变化。
+
+协议说明见 [阿里云 Qwen 图片生成与编辑文档](https://help.aliyun.com/zh/model-studio/qwen-image-generation-and-editing-api-reference)。
+
+### 响应
 
 成功响应为 `image/png`。失败响应为：
 

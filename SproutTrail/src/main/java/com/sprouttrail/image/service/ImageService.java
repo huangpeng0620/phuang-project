@@ -11,25 +11,29 @@ import dev.langchain4j.model.output.Response;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.MemoryCacheImageInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.Base64;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 完成图片生成、图片数据读取和服务器本地保存
+ * 完成图片生成、图片数据读取和 MinIO 上传
  *
  * <p>该服务不记录用户的完整 prompt，也不记录模型返回的 base64 内容，
  * 防止日志意外保存用户数据或产生超大日志文件。
@@ -39,24 +43,25 @@ public class ImageService {
 
     private static final Logger log = LoggerFactory.getLogger(ImageService.class);
 
+    /** 与 multipart 配置一致；服务层再次校验，防止绕过 HTTP 接口的调用。 */
+    private static final long MAX_UPLOAD_BYTES = 5L * 1024 * 1024;
+
     @Resource
     private ImageModelConfig imageModelConfig;
 
     @Resource
     private ImageProperties properties;
 
-    private Path storageDirectory;
+    @Resource
+    private MinioService minioService;
 
     private HttpClient httpClient;
 
     /**
-     * 在依赖注入完成后初始化图片存储目录和 HTTP 客户端。
-     *
-     * <p>存储路径转换为绝对标准路径，后续生成的目标文件必须位于该目录内。
+     * 在依赖注入完成后初始化用于下载模型图片的 HTTP 客户端。
      */
     @PostConstruct
     private void initialize() {
-        this.storageDirectory = properties.getStoragePath().toAbsolutePath().normalize();
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(properties.getTimeout())
                 .followRedirects(HttpClient.Redirect.NEVER)
@@ -64,39 +69,128 @@ public class ImageService {
     }
 
     /**
-     * 根据文字描述生成一张 PNG 图片并保存到本地目录
+     * 根据文字描述生成一张 PNG 图片并上传到 MinIO
      *
      * @param prompt      已通过 Controller 校验的图片描述
      * @param aspectRatio 用户选择的图片画幅
      * @return 图片文件名及其二进制内容
-     * @throws ImageWorkflowException 模型调用失败、返回内容无效或图片写入失败
+     * @throws ImageWorkflowException 模型调用失败、返回内容无效或 MinIO 上传失败
      */
     public GeneratedImage generate(String prompt, ImageAspectRatio aspectRatio) {
         long startedAt = System.nanoTime();
         // 保留调用方传入的全部字符；提示词的前后空白也可能是用户有意输入的内容。
         Image image = callImageModel(prompt, aspectRatio);
-        byte[] imageBytes = decodeImage(image);
-        String filename = UUID.randomUUID() + ".png";
-        Path target = storageDirectory.resolve(filename).normalize();
+        return saveImage(image, startedAt);
+    }
 
-        // 文件名由服务端 UUID 生成；该检查继续保证未来修改文件名规则时不会发生路径穿越。
-        if (!target.startsWith(storageDirectory)) {
-            throw new ImageWorkflowException("IMAGE_STORAGE_FAILED", HttpStatus.INTERNAL_SERVER_ERROR,
-                    "图片已生成，但保存失败", new IllegalStateException("Invalid image target path"));
+    /**
+     * 基于上传的原图进行编辑，并复用文生图的结果下载和 MinIO 上传流程。
+     *
+     * @param upload 本次上传的单张原图
+     * @param prompt 用户确认的编辑要求
+     * @param aspectRatio 输出画幅
+     * @return MinIO 对象名与 PNG 内容
+     */
+    public GeneratedImage edit(MultipartFile upload, String prompt, ImageAspectRatio aspectRatio) {
+        Image originalImage = readUploadedImage(upload);
+        long startedAt = System.nanoTime();
+        try {
+            Response<Image> response = imageModelConfig.imageModel(aspectRatio).edit(originalImage, prompt);
+            if (response == null || response.content() == null) {
+                throw new IllegalStateException("Image editing returned no image");
+            }
+            return saveImage(response.content(), startedAt);
+        } catch (ImageWorkflowException exception) {
+            // 下载结果失败属于图片编辑失败，存储和模型返回的明确错误则保持原错误码。
+            if (!"IMAGE_GENERATION_FAILED".equals(exception.code())) {
+                throw exception;
+            }
+            throw imageEditFailure(exception);
+        } catch (RuntimeException exception) {
+            throw imageEditFailure(exception);
+        }
+    }
+
+    /**
+     * 检查图片真实格式、尺寸及可解码性，再使用原始字节构造模型输入。
+     *
+     * <p>先检查尺寸再解码，限制为 1600 万像素，避免小文件声明巨大尺寸造成内存耗尽。
+     * 文件名与客户端声明的 Content-Type 不作为实际格式的判断依据。
+     */
+    static Image readUploadedImage(MultipartFile upload) {
+        if (upload == null || upload.isEmpty()) {
+            throw invalidUpload("请上传一张原图");
+        }
+        if (upload.getSize() > MAX_UPLOAD_BYTES) {
+            throw new ImageWorkflowException("IMAGE_UPLOAD_TOO_LARGE", HttpStatus.PAYLOAD_TOO_LARGE,
+                    "原图不能超过 5MB");
         }
 
         try {
-            Files.createDirectories(storageDirectory);
-            // CREATE_NEW 可以避免极端情况下同名文件被静默覆盖
-            Files.write(target, imageBytes, StandardOpenOption.CREATE_NEW);
-        } catch (IOException exception) {
+            byte[] bytes = upload.getBytes();
+            try (MemoryCacheImageInputStream input = new MemoryCacheImageInputStream(
+                    new ByteArrayInputStream(bytes))) {
+                Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
+                if (!readers.hasNext()) {
+                    throw invalidUpload("请上传有效的 JPG 或 PNG 图片");
+                }
+                ImageReader reader = readers.next();
+                try {
+                    reader.setInput(input, true, true);
+                    String format = reader.getFormatName().toLowerCase(Locale.ROOT);
+                    if (!"jpeg".equals(format) && !"png".equals(format)) {
+                        throw invalidUpload("仅支持 JPG 和 PNG 图片");
+                    }
+                    int width = reader.getWidth(0);
+                    int height = reader.getHeight(0);
+                    if (width < 1 || height < 1 || width > 8000 || height > 8000
+                            || (long) width * height > 16_000_000) {
+                        throw invalidUpload("图片宽高需在 1～8000 像素之间，总像素不能超过 1600 万");
+                    }
+                    if (Math.max(width, height) > 10L * Math.min(width, height)) {
+                        throw invalidUpload("原图长边不能超过短边的 10 倍");
+                    }
+                    if (reader.read(0) == null) {
+                        throw invalidUpload("图片无法读取，请重新上传");
+                    }
+                    return Image.builder()
+                            .base64Data(Base64.getEncoder().encodeToString(bytes))
+                            .mimeType("png".equals(format) ? "image/png" : "image/jpeg")
+                            .build();
+                } finally {
+                    reader.dispose();
+                }
+            }
+        } catch (IOException | IllegalArgumentException exception) {
+            throw new ImageWorkflowException("INVALID_IMAGE_UPLOAD", HttpStatus.BAD_REQUEST,
+                    "图片无法读取，请上传有效的 JPG 或 PNG 图片", exception);
+        }
+    }
+
+    /** 文生图与图片编辑共用结果读取、UUID 命名和 MinIO 上传规则。 */
+    private GeneratedImage saveImage(Image image, long startedAt) {
+        byte[] imageBytes = decodeImage(image);
+        String filename = UUID.randomUUID() + ".png";
+        try {
+            minioService.uploadFile(filename, imageBytes, MediaType.IMAGE_PNG_VALUE);
+        } catch (Exception exception) {
             throw new ImageWorkflowException("IMAGE_STORAGE_FAILED", HttpStatus.INTERNAL_SERVER_ERROR,
-                    "图片已生成，但保存失败", exception);
+                    "图片已生成，但上传到 MinIO 失败", exception);
         }
 
         long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
-        log.info("Image generated and saved: filename={}, bytes={}, elapsedMs={}", filename, imageBytes.length, elapsedMillis);
+        log.info("Image generated and uploaded to MinIO: filename={}, bytes={}, elapsedMs={}",
+                filename, imageBytes.length, elapsedMillis);
         return new GeneratedImage(filename, imageBytes);
+    }
+
+    private static ImageWorkflowException invalidUpload(String message) {
+        return new ImageWorkflowException("INVALID_IMAGE_UPLOAD", HttpStatus.BAD_REQUEST, message);
+    }
+
+    private ImageWorkflowException imageEditFailure(Throwable cause) {
+        return new ImageWorkflowException("IMAGE_EDIT_FAILED", HttpStatus.BAD_GATEWAY,
+                "图片优化失败，请稍后重试", cause);
     }
 
     /**

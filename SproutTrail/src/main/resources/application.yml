@@ -2,6 +2,11 @@ server:
   port: 8080
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      # 为提示词字段和 multipart 边界额外预留请求空间。
+      max-request-size: 6MB
   application:
     name: sprouttrail
   threads:
@@ -16,5 +21,13 @@ app:
     image-model: qwen-image-3.0
     prompt-model: qwen-plus
     prompt-base-url: https://llm-yjcrddyghy0vh1ul.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
-    storage-path: ./data/images
     timeout: 120s
+
+
+# MinIO 配置
+minio:
+  url: http://8.136.10.85:9000
+  accessKey: minioadmin
+  secretKey: minioadmin
+  bucketName: sprouttrail
+  endpoint: http://8.136.10.85:9000

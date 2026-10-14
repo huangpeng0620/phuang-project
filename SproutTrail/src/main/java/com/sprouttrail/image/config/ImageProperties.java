@@ -8,7 +8,6 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
-import java.nio.file.Path;
 import java.time.Duration;
 
 /**
@@ -43,10 +42,6 @@ public class ImageProperties {
     /** 提示词优化的兼容接口地址；为空字符串时复用图片接口地址。 */
     @NotNull
     private String promptBaseUrl;
-
-    /** 图片在服务器上的保存目录。 */
-    @NotNull
-    private Path storagePath;
 
     /** 单次图片生成的最大等待时间。 */
     @NotNull

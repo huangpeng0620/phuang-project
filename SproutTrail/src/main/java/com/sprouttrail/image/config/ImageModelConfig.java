@@ -1,6 +1,8 @@
 package com.sprouttrail.image.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sprouttrail.image.model.ImageAspectRatio;
+import com.sprouttrail.image.model.QwenImageModel;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.image.ImageModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
@@ -9,6 +11,7 @@ import jakarta.annotation.Resource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.net.http.HttpClient;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -23,6 +26,9 @@ public class ImageModelConfig {
 
     @Resource
     private ImageProperties properties;
+
+    @Resource
+    private ObjectMapper objectMapper;
 
     private final Map<ImageAspectRatio, ImageModel> imageModels = new ConcurrentHashMap<>();
 
@@ -40,7 +46,7 @@ public class ImageModelConfig {
     }
 
     private ImageModel createImageModel(ImageAspectRatio aspectRatio) {
-        return OpenAiImageModel.builder()
+        ImageModel generationModel = OpenAiImageModel.builder()
                 .apiKey(properties.getApiKey())
                 .baseUrl(properties.getBaseUrl())
                 .modelName(properties.getImageModel())
@@ -48,6 +54,11 @@ public class ImageModelConfig {
                 .timeout(properties.getTimeout())
                 .maxRetries(1)
                 .build();
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(properties.getTimeout())
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
+        return new QwenImageModel(generationModel, properties, aspectRatio, objectMapper, httpClient);
     }
 
     /**

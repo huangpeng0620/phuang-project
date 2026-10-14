@@ -8,7 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
  * SproutTrail 应用入口
  *
  * <p>{@link ConfigurationPropertiesScan} 会自动发现本项目中的配置属性类，
- * 让图片模型、超时时间和存储目录都可以通过 application.yml 或环境变量配置。
+ * 让图片模型和超时时间都可以通过 application.yml 或环境变量配置。
  */
 @SpringBootApplication
 @ConfigurationPropertiesScan

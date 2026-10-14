@@ -6,9 +6,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.http.HttpStatus;
+import org.springframework.validation.BindException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 /**
  * 将后端异常转换为前端可以稳定处理的 JSON 错误结构
@@ -21,14 +23,22 @@ public class ApiExceptionHandler {
     /**
      * 返回 Bean Validation 产生的第一个用户可读错误
      */
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException exception) {
+    @ExceptionHandler(BindException.class)
+    public ResponseEntity<ApiError> handleValidation(BindException exception) {
         String message = exception.getBindingResult().getFieldErrors().stream()
                 .findFirst()
-                .map(error -> error.getDefaultMessage() == null ? "请求参数不合法" : error.getDefaultMessage())
+                .map(error -> error.isBindingFailure() || error.getDefaultMessage() == null
+                        ? "请求参数不合法，请检查画面比例等字段" : error.getDefaultMessage())
                 .orElse("请求参数不合法");
         return ResponseEntity.badRequest()
                 .body(ApiError.of("VALIDATION_FAILED", message));
+    }
+
+    /** 上传超过 Spring multipart 限制时，返回与其他接口一致的错误结构。 */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> handleUploadTooLarge() {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(ApiError.of("IMAGE_UPLOAD_TOO_LARGE", "原图不能超过 5MB"));
     }
 
     /**
