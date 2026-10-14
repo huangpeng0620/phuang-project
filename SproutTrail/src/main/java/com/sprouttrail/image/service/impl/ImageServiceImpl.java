@@ -1,18 +1,17 @@
 package com.sprouttrail.image.service.impl;
 
 import cn.dev33.satoken.stp.StpUtil;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.sprouttrail.image.config.ImageModelConfig;
-import com.sprouttrail.image.config.ImageProperties;
-import com.sprouttrail.image.exception.ImageWorkflowException;
+import com.sprouttrail.common.config.ImageModelConfig;
+import com.sprouttrail.common.config.ImageProperties;
+import com.sprouttrail.common.exception.ImageWorkflowException;
 import com.sprouttrail.image.mapper.ImageGenerationRecordMapper;
+import com.sprouttrail.image.mapper.ImageOptimizationRecordMapper;
 import com.sprouttrail.image.model.entity.ImageGenerationRecord;
+import com.sprouttrail.image.model.entity.ImageOptimizationRecord;
 import com.sprouttrail.image.model.enums.ImageAspectRatio;
 import com.sprouttrail.image.model.response.GeneratedImage;
-import com.sprouttrail.image.model.response.ImageHistoryItem;
-import com.sprouttrail.image.model.response.ImageHistoryResponse;
 import com.sprouttrail.image.service.ImageService;
-import com.sprouttrail.image.service.MinioService;
+import com.sprouttrail.storage.MinioService;
 import dev.langchain4j.data.image.Image;
 import dev.langchain4j.model.image.ImageModel;
 import dev.langchain4j.model.output.Response;
@@ -23,21 +22,18 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.server.ResponseStatusException;
 
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.MemoryCacheImageInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Base64;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -45,7 +41,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * 完成图片生成、图片数据读取和 MinIO 上传
  *
- * <p>该服务不记录用户的完整 prompt，也不记录模型返回的 base64 内容，
+ * <p>日志不会打印用户的完整 prompt 或模型返回的 base64 内容，
  * 防止日志意外保存用户数据或产生超大日志文件。
  */
 @Service
@@ -66,6 +62,9 @@ public class ImageServiceImpl implements ImageService {
 
     @Resource
     private ImageGenerationRecordMapper imageGenerationRecordMapper;
+
+    @Resource
+    private ImageOptimizationRecordMapper imageOptimizationRecordMapper;
 
     private HttpClient httpClient;
 
@@ -108,65 +107,6 @@ public class ImageServiceImpl implements ImageService {
     }
 
     /**
-     * 只查询当前用户拥有的文生图记录，并多取一条用于判断是否还有下一页。
-     * 页码和页大小在拼入 LIMIT 子句前已完成边界校验。
-     */
-    @Override
-    public ImageHistoryResponse getHistory(Long userId, int page, int pageSize) {
-        if (page < 1 || pageSize < 1 || pageSize > 50) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "页码需大于 0，页大小需为 1～50");
-        }
-
-        long offset = ((long) page - 1) * pageSize;
-        List<ImageGenerationRecord> records = imageGenerationRecordMapper.selectList(
-                new LambdaQueryWrapper<ImageGenerationRecord>()
-                        .eq(ImageGenerationRecord::getUserId, userId)
-                        .orderByDesc(ImageGenerationRecord::getCreatedAt)
-                        .orderByDesc(ImageGenerationRecord::getId)
-                        .last("LIMIT " + (pageSize + 1) + " OFFSET " + offset));
-
-        boolean hasMore = records.size() > pageSize;
-        List<ImageGenerationRecord> pageRecords = hasMore
-                ? records.subList(0, pageSize)
-                : records;
-        List<ImageHistoryItem> items = pageRecords.stream()
-                .map(record -> new ImageHistoryItem(record.getId(), record.getOriginalPrompt(),
-                        record.getOptimizedPrompt(), record.getMinioImageUrl(), record.getAspectRatio(),
-                        record.getCreatedAt()))
-                .toList();
-        return new ImageHistoryResponse(items, page, pageSize, hasMore);
-    }
-
-    /** 下载前再次按用户 ID 过滤，避免通过猜测记录 ID 获取其他用户的图片。 */
-    @Override
-    public GeneratedImage downloadHistoryImage(Long userId, Long recordId) {
-        ImageGenerationRecord record = imageGenerationRecordMapper.selectOne(
-                new LambdaQueryWrapper<ImageGenerationRecord>()
-                        .eq(ImageGenerationRecord::getId, recordId)
-                        .eq(ImageGenerationRecord::getUserId, userId));
-        if (record == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "没有找到这张图片");
-        }
-
-        try {
-            String imagePath = URI.create(record.getMinioImageUrl()).getPath();
-            String filename = imagePath.substring(imagePath.lastIndexOf('/') + 1);
-            if (!filename.matches("[a-fA-F0-9-]{36}\\.png")) {
-                throw new ImageWorkflowException("IMAGE_STORAGE_FAILED", HttpStatus.BAD_GATEWAY,
-                        "图片地址无效，暂时无法下载");
-            }
-            try (InputStream stream = minioService.downloadFile(filename)) {
-                return new GeneratedImage(filename, stream.readAllBytes(), record.getMinioImageUrl());
-            }
-        } catch (ImageWorkflowException exception) {
-            throw exception;
-        } catch (Exception exception) {
-            throw new ImageWorkflowException("IMAGE_STORAGE_FAILED", HttpStatus.BAD_GATEWAY,
-                    "图片下载失败，请稍后重试", exception);
-        }
-    }
-
-    /**
      * 基于上传的原图进行编辑，并复用文生图的结果下载和 MinIO 上传流程。
      *
      * @param upload 本次上传的单张原图
@@ -177,21 +117,64 @@ public class ImageServiceImpl implements ImageService {
     @Override
     public GeneratedImage edit(MultipartFile upload, String prompt, ImageAspectRatio aspectRatio) {
         Image originalImage = readUploadedImage(upload);
+        String sourceExtension = "image/jpeg".equals(originalImage.mimeType()) ? ".jpg" : ".png";
+        String sourceFilename = UUID.randomUUID() + sourceExtension;
+        String sourceImageUrl = uploadSourceImage(originalImage, sourceFilename);
         long startedAt = System.nanoTime();
+        GeneratedImage generatedImage;
         try {
             Response<Image> response = imageModelConfig.imageModel(aspectRatio).edit(originalImage, prompt);
             if (response == null || response.content() == null) {
                 throw new IllegalStateException("Image editing returned no image");
             }
-            return saveImage(response.content(), startedAt);
+            generatedImage = saveImage(response.content(), startedAt);
         } catch (ImageWorkflowException exception) {
+            deleteUploadedSource(sourceFilename);
             // 下载结果失败属于图片编辑失败，存储和模型返回的明确错误则保持原错误码。
             if (!"IMAGE_GENERATION_FAILED".equals(exception.code())) {
                 throw exception;
             }
             throw imageEditFailure(exception);
         } catch (RuntimeException exception) {
+            deleteUploadedSource(sourceFilename);
             throw imageEditFailure(exception);
+        }
+
+        ImageOptimizationRecord record = ImageOptimizationRecord.builder()
+                .userId(StpUtil.getLoginIdAsLong())
+                .sourceImageUrl(sourceImageUrl)
+                .prompt(prompt)
+                .resultImageUrl(generatedImage.getMinioUrl())
+                .aspectRatio(aspectRatio.name())
+                .build();
+        imageOptimizationRecordMapper.insert(record);
+        return generatedImage;
+    }
+
+    /** 将经过实际格式校验的原图上传至 MinIO，并返回持久地址。 */
+    private String uploadSourceImage(Image image, String filename) {
+        byte[] imageBytes;
+        try {
+            imageBytes = Base64.getDecoder().decode(image.base64Data());
+        } catch (IllegalArgumentException exception) {
+            throw invalidUpload("图片无法读取，请重新上传");
+        }
+
+        try {
+            return minioService.uploadFile(filename, imageBytes, image.mimeType());
+        } catch (Exception exception) {
+            throw new ImageWorkflowException("IMAGE_STORAGE_FAILED", HttpStatus.INTERNAL_SERVER_ERROR,
+                    "原图上传到 MinIO 失败", exception);
+        }
+    }
+
+    /** 图片编辑失败时清理已上传的原图，避免留下无记录的 MinIO 对象。 */
+    private void deleteUploadedSource(String filename) {
+        try {
+            minioService.deleteFile(filename);
+        } catch (Exception exception) {
+            log.warn("Failed to remove source image after image editing failed: filename={}", filename,
+                    exception);
         }
     }
 

@@ -20,3 +20,15 @@ CREATE TABLE IF NOT EXISTS image_generation_record (
     PRIMARY KEY (id),
     KEY idx_image_generation_user_created (user_id, created_at, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='图片生成记录';
+
+CREATE TABLE IF NOT EXISTS image_optimization_record (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '记录ID',
+    user_id BIGINT UNSIGNED NOT NULL COMMENT '所属用户ID',
+    source_image_url VARCHAR(2048) NOT NULL COMMENT '上传原图的 MinIO 地址',
+    prompt VARCHAR(800) NOT NULL COMMENT '用户提交的图片优化要求',
+    result_image_url VARCHAR(2048) NOT NULL COMMENT '优化结果的 MinIO 地址',
+    aspect_ratio VARCHAR(32) NOT NULL COMMENT '输出画幅',
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '优化时间',
+    PRIMARY KEY (id),
+    KEY idx_image_optimization_user_created (user_id, created_at, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='图片优化记录';

@@ -4,7 +4,7 @@
 
 用户输入文字后，后端调用图片模型生成一张 PNG，上传到 MinIO，并把图片返回给浏览器预览和下载。
 用户也可以先让文本模型给出三条可追加的提示词建议，选择并确认后再生成；原始输入始终保留，用户也可以直接使用原文生成。
-文生图成功后，应用会把原始提示词、最终提示词、MinIO 图片地址、画幅和生成时间保存到 MySQL 的 `image_generation_record` 表。
+文生图成功后，应用会把原始提示词、最终提示词、MinIO 图片地址、画幅和生成时间保存到 MySQL 的 `image_generation_record` 表。图片优化成功后，应用会将原图和优化结果上传到 MinIO，并把两者地址、优化要求、画幅和优化时间保存到 `image_optimization_record` 表。
 切换到“图片优化”后，可以上传单张 JPG/PNG、输入编辑要求并生成新图片；支持原图与结果切换对比和下载。
 
 ## 技术栈
@@ -58,7 +58,7 @@ http://localhost:8080
 ```
 
 生成结果会上传到 `application.yml` 中配置的 MinIO bucket。
-MySQL 连接配置位于 `application.yml` 的 `spring.datasource` 下；应用启动时会自动创建缺少的记录表。已存在的数据库需要先执行一次 `src/main/resources/db/manual/001_add_image_generation_user_id.sql`，为图片记录增加用户归属字段；已有的旧记录不会显示在用户历史中。
+MySQL 连接配置位于 `application.yml` 的 `spring.datasource` 下；应用启动时会自动创建缺少的记录表。图片优化历史表也可通过 `src/main/resources/db/manual/002_create_image_optimization_record.sql` 手动创建。已存在的数据库需要先执行一次 `src/main/resources/db/manual/001_add_image_generation_user_id.sql`，为图片记录增加用户归属字段；已有的旧记录不会显示在用户历史中。
 
 ## Linux 服务器部署
 
@@ -123,11 +123,13 @@ Content-Type: application/json
 
 ### 我的图片
 
-登录后访问 `http://localhost:8080/history.html` 查看当前账号的文生图记录。页面支持预览、下载、复制提示词和继续创作；图片优化结果目前不会加入此列表。
+登录后访问 `http://localhost:8080/history.html` 查看当前账号的文生图和图片优化记录。页面支持预览、下载和复制提示词；文生图记录还支持继续创作，图片优化记录会并排展示原图与优化结果。
 
 ```http
 GET /api/images/history?page=1&pageSize=20
 GET /api/images/history/{recordId}/download
+GET /api/images/optimization-history?page=1&pageSize=20
+GET /api/images/optimization-history/{recordId}/download
 ```
 
 记录归属由服务端从 Sa-Token 会话中读取，不接受客户端传入的用户 ID。分页大小最大为 50 条。

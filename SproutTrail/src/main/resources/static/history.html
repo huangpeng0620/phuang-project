@@ -33,18 +33,30 @@
           <div>
             <div class="eyebrow">YOUR IMAGE LIBRARY</div>
             <h1>我的图片</h1>
-            <p>这里保存了你通过文字生成的图片，可以查看提示词、下载或继续创作。</p>
+            <p>查看你生成和优化过的图片，并复制提示词或下载结果。</p>
           </div>
           <a class="history-create-button" href="/">＋ 新建图片</a>
         </div>
 
+        <div class="history-tabs" role="tablist" aria-label="图片记录类型">
+          <button class="history-tab is-active" id="generation-tab" type="button" role="tab"
+                  aria-selected="true" aria-controls="history-grid" data-history-type="generation">
+            文生图
+          </button>
+          <button class="history-tab" id="optimization-tab" type="button" role="tab"
+                  aria-selected="false" aria-controls="history-grid" data-history-type="optimization">
+            图片优化
+          </button>
+        </div>
+
         <p class="history-status" id="history-status" role="status" aria-live="polite">正在加载图片记录…</p>
         <p class="history-error" id="history-error" role="alert" hidden></p>
-        <section class="history-grid" id="history-grid" aria-label="我的图片列表"></section>
+        <section class="history-grid" id="history-grid" role="tabpanel"
+                 aria-labelledby="generation-tab" aria-label="我的图片列表"></section>
         <section class="history-empty" id="history-empty" hidden>
           <div class="history-empty-icon" aria-hidden="true">✧</div>
-          <h2>这里还没有图片</h2>
-          <p>当前账号暂无图片记录。上线前生成的记录没有关联账号，因此不会显示。</p>
+          <h2 id="history-empty-title">这里还没有图片</h2>
+          <p id="history-empty-message">当前账号暂无文生图记录。</p>
           <a class="history-create-button" href="/">开始创作</a>
         </section>
         <button class="history-load-more" id="history-load-more" type="button" hidden>加载更多</button>

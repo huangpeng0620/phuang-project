@@ -4,11 +4,15 @@ const historyGrid = document.querySelector("#history-grid");
 const historyStatus = document.querySelector("#history-status");
 const historyError = document.querySelector("#history-error");
 const historyEmpty = document.querySelector("#history-empty");
+const historyEmptyTitle = document.querySelector("#history-empty-title");
+const historyEmptyMessage = document.querySelector("#history-empty-message");
 const loadMoreButton = document.querySelector("#history-load-more");
+const historyTabs = [...document.querySelectorAll("[data-history-type]")];
 
 let currentPage = 1;
 let hasMore = false;
 let isLoading = false;
+let historyType = "generation";
 const historyItems = new Map();
 
 function redirectToLogin() {
@@ -56,29 +60,50 @@ function createPromptBlock(title, prompt, recordId, copyKind) {
   return block;
 }
 
+function createImageLink(url, alt, label) {
+  const link = document.createElement("a");
+  link.className = "history-image-link";
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.setAttribute("aria-label", label ? `在新标签页查看${label}` : "在新标签页查看图片");
+  const image = document.createElement("img");
+  image.className = "history-image";
+  image.src = url;
+  image.alt = alt;
+  image.loading = "lazy";
+  link.append(image);
+  if (label) {
+    const badge = document.createElement("span");
+    badge.className = "history-image-label";
+    badge.textContent = label;
+    link.append(badge);
+  }
+  return link;
+}
+
 function createHistoryCard(item) {
+  const isOptimization = historyType === "optimization";
   historyItems.set(String(item.id), item);
   const card = document.createElement("article");
   card.className = "history-card";
 
-  const imageLink = document.createElement("a");
-  imageLink.className = "history-image-link";
-  imageLink.href = item.minioImageUrl;
-  imageLink.target = "_blank";
-  imageLink.rel = "noopener noreferrer";
-  imageLink.setAttribute("aria-label", "在新标签页查看图片");
-  const image = document.createElement("img");
-  image.className = "history-image";
-  image.src = item.minioImageUrl;
-  image.alt = item.originalPrompt;
-  image.loading = "lazy";
-  imageLink.append(image);
+  if (isOptimization) {
+    const imagePair = document.createElement("div");
+    imagePair.className = "history-image-pair";
+    imagePair.append(
+      createImageLink(item.sourceImageUrl, "图片优化前的原图", "原图"),
+      createImageLink(item.resultImageUrl, "图片优化后的结果", "优化结果"));
+    card.append(imagePair);
+  } else {
+    card.append(createImageLink(item.minioImageUrl, item.originalPrompt, null));
+  }
 
   const body = document.createElement("div");
   body.className = "history-card-body";
   const prompt = document.createElement("p");
   prompt.className = "history-prompt";
-  prompt.textContent = item.originalPrompt;
+  prompt.textContent = isOptimization ? item.prompt : item.originalPrompt;
 
   const meta = document.createElement("div");
   meta.className = "history-meta";
@@ -92,40 +117,63 @@ function createHistoryCard(item) {
   const details = document.createElement("details");
   details.className = "history-details";
   const summary = document.createElement("summary");
-  summary.textContent = "查看提示词";
-  details.append(summary,
-    createPromptBlock("原始提示词", item.originalPrompt, item.id, "original"),
-    createPromptBlock("最终提示词", item.optimizedPrompt, item.id, "optimized"));
+  summary.textContent = isOptimization ? "查看优化要求" : "查看提示词";
+  details.append(summary);
+  if (isOptimization) {
+    details.append(createPromptBlock("图片优化要求", item.prompt, item.id, "prompt"));
+  } else {
+    details.append(
+      createPromptBlock("原始提示词", item.originalPrompt, item.id, "original"),
+      createPromptBlock("最终提示词", item.optimizedPrompt, item.id, "optimized"));
+  }
 
   const actions = document.createElement("div");
-  actions.className = "history-actions";
+  actions.className = `history-actions${isOptimization ? " history-actions-single" : ""}`;
   const downloadButton = document.createElement("button");
   downloadButton.type = "button";
   downloadButton.className = "history-action";
   downloadButton.dataset.downloadId = item.id;
   downloadButton.textContent = "下载图片";
-  const continueButton = document.createElement("button");
-  continueButton.type = "button";
-  continueButton.className = "history-action";
-  continueButton.dataset.continueId = item.id;
-  continueButton.textContent = "继续创作";
-  actions.append(downloadButton, continueButton);
+  actions.append(downloadButton);
+  if (!isOptimization) {
+    const continueButton = document.createElement("button");
+    continueButton.type = "button";
+    continueButton.className = "history-action";
+    continueButton.dataset.continueId = item.id;
+    continueButton.textContent = "继续创作";
+    actions.append(continueButton);
+  }
 
   body.append(prompt, meta, details, actions);
-  card.append(imageLink, body);
+  card.append(body);
   return card;
+}
+
+function updateEmptyState() {
+  const isOptimization = historyType === "optimization";
+  historyEmptyTitle.textContent = isOptimization ? "这里还没有优化记录" : "这里还没有生成图片";
+  historyEmptyMessage.textContent = isOptimization
+    ? "上传图片并完成一次优化后，记录会显示在这里。"
+    : "使用文字生成图片后，记录会显示在这里。";
+}
+
+function historyEndpoint() {
+  return historyType === "optimization"
+    ? "/api/images/optimization-history"
+    : "/api/images/history";
 }
 
 async function loadHistory() {
   if (isLoading) return;
   isLoading = true;
   loadMoreButton.disabled = true;
+  historyTabs.forEach((tab) => { tab.disabled = true; });
   historyError.hidden = true;
   historyStatus.textContent = currentPage === 1 ? "正在加载图片记录…" : "正在加载更多…";
 
   try {
     const response = await authenticatedFetch(
-      `/api/images/history?page=${currentPage}&pageSize=${PAGE_SIZE}`);
+      `${historyEndpoint()}?page=${currentPage}&pageSize=${PAGE_SIZE}`);
     if (!response.ok) throw new Error(await readError(response));
 
     const result = await response.json();
@@ -135,7 +183,9 @@ async function loadHistory() {
     const hasItems = historyGrid.childElementCount > 0;
     historyEmpty.hidden = hasItems;
     loadMoreButton.hidden = !hasMore;
-    historyStatus.textContent = hasItems ? "按生成时间倒序显示" : "";
+    historyStatus.textContent = hasItems
+      ? (historyType === "optimization" ? "按优化时间倒序显示" : "按生成时间倒序显示")
+      : "";
   } catch (error) {
     historyError.textContent = error.message || "图片记录加载失败，请稍后重试";
     historyError.hidden = false;
@@ -143,14 +193,18 @@ async function loadHistory() {
   } finally {
     isLoading = false;
     loadMoreButton.disabled = false;
+    historyTabs.forEach((tab) => { tab.disabled = false; });
   }
 }
 
 async function downloadHistoryImage(recordId, button) {
   button.disabled = true;
   button.textContent = "正在下载…";
+  const basePath = historyType === "optimization"
+    ? "/api/images/optimization-history"
+    : "/api/images/history";
   try {
-    const response = await authenticatedFetch(`/api/images/history/${recordId}/download`);
+    const response = await authenticatedFetch(`${basePath}/${recordId}/download`);
     if (!response.ok) throw new Error(await readError(response));
 
     const objectUrl = URL.createObjectURL(await response.blob());
@@ -182,7 +236,9 @@ historyGrid.addEventListener("click", async (event) => {
     if (!item) return;
     const text = copyButton.dataset.copyKind === "optimized"
       ? item.optimizedPrompt
-      : item.originalPrompt;
+      : copyButton.dataset.copyKind === "prompt"
+        ? item.prompt
+        : item.originalPrompt;
     try {
       await navigator.clipboard.writeText(text);
       copyButton.textContent = "已复制";
@@ -200,6 +256,26 @@ historyGrid.addEventListener("click", async (event) => {
     window.location.assign(`/?${query}`);
   }
 });
+
+historyTabs.forEach((tab) => tab.addEventListener("click", () => {
+  if (isLoading || tab.dataset.historyType === historyType) return;
+  historyType = tab.dataset.historyType;
+  historyGrid.setAttribute("aria-labelledby", tab.id);
+  historyTabs.forEach((item) => {
+    const isSelected = item === tab;
+    item.classList.toggle("is-active", isSelected);
+    item.setAttribute("aria-selected", String(isSelected));
+  });
+  currentPage = 1;
+  hasMore = false;
+  historyItems.clear();
+  historyGrid.replaceChildren();
+  historyEmpty.hidden = true;
+  historyError.hidden = true;
+  loadMoreButton.hidden = true;
+  updateEmptyState();
+  void loadHistory();
+}));
 
 loadMoreButton.addEventListener("click", loadHistory);
 
@@ -226,6 +302,7 @@ async function initializeHistoryPage() {
     const session = await response.json();
     document.querySelector("#current-user").textContent = session.username;
     document.documentElement.classList.remove("auth-checking");
+    updateEmptyState();
     await loadHistory();
   } catch {
     redirectToLogin();
