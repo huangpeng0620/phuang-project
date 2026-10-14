@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN" class="auth-checking">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="查看和管理我的图片生成记录" />
+    <title>我的图片 · SproutTrail</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="history.css" />
+  </head>
+  <body>
+    <div class="page-shell history-page">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="SproutTrail 创作工作台">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32">
+              <path d="M16 25V14" />
+              <path d="M16 17C11 17 8 14 8 9c5 0 8 3 8 8Z" />
+              <path d="M16 13c0-5 3-8 8-8 0 5-3 8-8 8Z" />
+            </svg>
+          </span>
+          <span>SproutTrail</span>
+        </a>
+        <div class="topbar-actions">
+          <a class="history-link" href="/">继续创作</a>
+          <span class="current-user" id="current-user" aria-live="polite"></span>
+          <button class="logout-button" id="logout-button" type="button">退出登录</button>
+        </div>
+      </header>
+
+      <main class="history-main">
+        <div class="history-heading">
+          <div>
+            <div class="eyebrow">YOUR IMAGE LIBRARY</div>
+            <h1>我的图片</h1>
+            <p>这里保存了你通过文字生成的图片，可以查看提示词、下载或继续创作。</p>
+          </div>
+          <a class="history-create-button" href="/">＋ 新建图片</a>
+        </div>
+
+        <p class="history-status" id="history-status" role="status" aria-live="polite">正在加载图片记录…</p>
+        <p class="history-error" id="history-error" role="alert" hidden></p>
+        <section class="history-grid" id="history-grid" aria-label="我的图片列表"></section>
+        <section class="history-empty" id="history-empty" hidden>
+          <div class="history-empty-icon" aria-hidden="true">✧</div>
+          <h2>这里还没有图片</h2>
+          <p>当前账号暂无图片记录。上线前生成的记录没有关联账号，因此不会显示。</p>
+          <a class="history-create-button" href="/">开始创作</a>
+        </section>
+        <button class="history-load-more" id="history-load-more" type="button" hidden>加载更多</button>
+      </main>
+    </div>
+    <script src="history.js"></script>
+  </body>
+</html>
