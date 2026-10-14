@@ -101,6 +101,24 @@ server {
 
 ## API
 
+### 用户登录
+
+启动后访问 `http://localhost:8080/login.html`，使用数据库中已创建的用户名和密码登录。当前版本不提供注册接口；`schema.sql` 会创建 `user` 表，需由部署者为该表添加至少一个启用用户，`password_hash` 必须是 BCrypt 哈希。
+
+登录相关接口如下：
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "username": "your-username",
+  "password": "your-password"
+}
+```
+
+成功响应包含 `tokenName`、`tokenValue`、用户 ID 和 token 有效期。后续请求需要在 `satoken` 请求头中携带 `tokenValue`。`POST /api/auth/logout` 注销当前会话；`GET /api/auth/token` 查询当前 token 和用户信息。图片生成、图片优化及提示词优化接口都要求登录。
+
 优化接口只返回三个文字补充建议，不会生成图片：
 
 ```http

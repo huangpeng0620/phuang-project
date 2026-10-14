@@ -63,7 +63,7 @@ public class ImageServiceImpl implements ImageService {
     private HttpClient httpClient;
 
     /**
-     * 在依赖注入完成后初始化用于下载模型图片的 HTTP 客户端。
+     * 在依赖注入完成后初始化用于下载模型图片的 HTTP 客户端
      */
     @PostConstruct
     private void initialize() {

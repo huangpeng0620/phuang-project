@@ -1,3 +1,50 @@
+const AUTH_TOKEN_KEY = "sprouttrail_token";
+
+/** 未登录或 token 失效时清理本地凭证，并返回登录页。 */
+function redirectToLogin() {
+  sessionStorage.removeItem(AUTH_TOKEN_KEY);
+  window.location.replace("/login.html");
+}
+
+/** 向业务 API 自动附加 Sa-Token；收到 401 时结束当前页面会话。 */
+async function authenticatedFetch(url, options = {}) {
+  const token = sessionStorage.getItem(AUTH_TOKEN_KEY);
+  if (!token) {
+    redirectToLogin();
+    throw new Error("登录状态已失效");
+  }
+
+  const headers = new Headers(options.headers || {});
+  headers.set("satoken", token);
+  const response = await fetch(url, { ...options, headers });
+  if (response.status === 401) redirectToLogin();
+  return response;
+}
+
+/** 页面启动时向后端确认会话有效，再显示图片创作工作台。 */
+async function verifyPageSession() {
+  const token = sessionStorage.getItem(AUTH_TOKEN_KEY);
+  if (!token) {
+    redirectToLogin();
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/auth/token", { headers: { satoken: token } });
+    if (!response.ok) {
+      redirectToLogin();
+      return;
+    }
+    const session = await response.json();
+    document.querySelector("#current-user").textContent = session.username;
+    document.documentElement.classList.remove("auth-checking");
+  } catch {
+    redirectToLogin();
+  }
+}
+
+void verifyPageSession();
+
 const promptInput = document.querySelector("#prompt");
 const promptBox = document.querySelector(".prompt-box");
 const promptCount = document.querySelector("#prompt-count");
@@ -367,7 +414,7 @@ async function optimizePrompt() {
   const timeoutId = window.setTimeout(() => controller.abort(), 135_000);
 
   try {
-    const response = await fetch("/api/prompts/optimize", {
+    const response = await authenticatedFetch("/api/prompts/optimize", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: originalPrompt }),
@@ -436,7 +483,7 @@ async function generateImage(originalPrompt, supplement = "") {
     } else {
       requestBody = JSON.stringify({ prompt: originalPrompt, supplement, aspectRatio });
     }
-    const response = await fetch(isEditing ? "/api/images/edit" : "/api/images/generate", {
+    const response = await authenticatedFetch(isEditing ? "/api/images/edit" : "/api/images/generate", {
       method: "POST",
       headers: isEditing ? {} : { "Content-Type": "application/json" },
       body: requestBody,
@@ -562,6 +609,19 @@ uploadArea.addEventListener("drop", (event) => {
 });
 comparisonButtons.forEach((button) => {
   button.addEventListener("click", () => displayResult(button.dataset.view));
+});
+
+document.querySelector("#logout-button").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  button.textContent = "正在退出…";
+  try {
+    await authenticatedFetch("/api/auth/logout", { method: "POST" });
+  } catch {
+    // 即使服务器暂时不可用，也清理当前浏览器中的会话并返回登录页。
+  } finally {
+    redirectToLogin();
+  }
 });
 
 /* 页面关闭时释放当前预览使用的 Blob URL，服务器保存的文件不受影响。 */

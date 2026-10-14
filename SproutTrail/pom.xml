@@ -49,6 +49,19 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- 提供 Spring Boot 3 环境下的 Sa-Token 登录会话与接口鉴权能力。 -->
+        <dependency>
+            <groupId>cn.dev33</groupId>
+            <artifactId>sa-token-spring-boot3-starter</artifactId>
+            <version>1.46.0</version>
+        </dependency>
+
+        <!-- 只使用 BCrypt 密码校验，不引入 Spring Security 的 Web 安全配置。 -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+
         <!--
           MVP 只需要 LangChain4j 的 OpenAI ImageModel 实现。
           不引入 AI Services、RAG、向量库等当前功能不需要的模块。

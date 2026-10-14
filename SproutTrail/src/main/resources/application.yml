@@ -41,3 +41,12 @@ minio:
   secretKey: minioadmin
   bucketName: sprouttrail
   endpoint: http://8.136.10.85:9000
+
+# Sa-Token 登录凭证通过请求头传递，前端使用 sessionStorage 保存会话。
+sa-token:
+  token-name: satoken
+  timeout: 604800
+  active-timeout: -1
+  is-read-header: true
+  is-read-cookie: false
+  is-read-body: false

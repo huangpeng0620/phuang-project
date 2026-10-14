@@ -1,5 +1,6 @@
 package com.sprouttrail.image.controller;
 
+import cn.dev33.satoken.exception.NotLoginException;
 import com.sprouttrail.image.exception.ImageWorkflowException;
 import com.sprouttrail.image.model.ApiError;
 import lombok.extern.slf4j.Slf4j;
@@ -7,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.BindException;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -59,5 +61,21 @@ public class ApiExceptionHandler {
                 exception.code(), cause == null ? "none" : cause.getClass().getSimpleName());
         return ResponseEntity.status(exception.status())
                 .body(ApiError.of(exception.code(), exception.userMessage()));
+    }
+
+    /** 登录密码错误或账号状态异常时，统一返回安全且稳定的 JSON 错误结构。 */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiError> handleStatus(ResponseStatusException exception) {
+        HttpStatus status = HttpStatus.valueOf(exception.getStatusCode().value());
+        String message = exception.getReason() == null ? "请求失败" : exception.getReason();
+        String code = status == HttpStatus.UNAUTHORIZED ? "AUTHENTICATION_FAILED" : "REQUEST_FAILED";
+        return ResponseEntity.status(status).body(ApiError.of(code, message));
+    }
+
+    /** Sa-Token 拦截器产生未登录异常时返回 HTTP 401，供前端清理 token 并跳转登录页。 */
+    @ExceptionHandler(NotLoginException.class)
+    public ResponseEntity<ApiError> handleNotLogin() {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ApiError.of("NOT_LOGIN", "登录状态已失效，请重新登录"));
     }
 }

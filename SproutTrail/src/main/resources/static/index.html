@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="auth-checking">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -20,7 +20,11 @@
           </span>
           <span>SproutTrail</span>
         </a>
-        <div class="status-pill"><span></span> 图片创作 · MVP</div>
+        <div class="topbar-actions">
+          <div class="status-pill"><span></span> 图片创作 · MVP</div>
+          <span class="current-user" id="current-user" aria-live="polite"></span>
+          <button class="logout-button" id="logout-button" type="button">退出登录</button>
+        </div>
       </header>
 
       <main class="workspace">

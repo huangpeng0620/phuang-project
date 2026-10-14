@@ -1,9 +1,8 @@
 package com.sprouttrail.image.controller;
 
-import com.sprouttrail.image.model.EditImageRequest;
-import com.sprouttrail.image.model.GenerateImageRequest;
-import com.sprouttrail.image.model.GeneratedImage;
+import com.sprouttrail.image.model.*;
 import com.sprouttrail.image.service.ImageService;
+import com.sprouttrail.image.service.UserAuthService;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.http.CacheControl;
@@ -11,11 +10,7 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 /**
  * 对外提供文生图和基于原图的图片优化接口

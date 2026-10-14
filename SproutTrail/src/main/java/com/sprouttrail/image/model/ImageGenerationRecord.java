@@ -42,4 +42,27 @@ public class ImageGenerationRecord {
     /** 由 MySQL 默认值写入的记录创建时间。 */
     @TableField("created_at")
     private LocalDateTime createdAt;
+
+    /** 登录成功后返回给浏览器的会话信息。 */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class LoginResponse {
+
+        /** 后续请求携带 token 时使用的请求头名称。 */
+        private String tokenName;
+
+        /** Sa-Token 登录凭证。 */
+        private String tokenValue;
+
+        /** 当前登录用户 ID。 */
+        private Long userId;
+
+        /** 当前登录用户名。 */
+        private String username;
+
+        /** token 剩余有效期，单位为秒。 */
+        private Long tokenTimeout;
+    }
 }

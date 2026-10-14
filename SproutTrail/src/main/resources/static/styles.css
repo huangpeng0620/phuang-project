@@ -18,6 +18,11 @@
   display: none !important;
 }
 
+/* token 校验完成前隐藏工作台，避免登录页跳转前短暂展示受保护界面。 */
+.auth-checking body {
+  visibility: hidden;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -99,6 +104,38 @@ button {
   border-radius: 50%;
   background: #79ae45;
   box-shadow: 0 0 0 3px rgba(121, 174, 69, 0.13);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.current-user {
+  color: #586057;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.logout-button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(24, 32, 27, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.48);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.logout-button:hover {
+  background: #fff;
+}
+
+.logout-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
 .workspace {
@@ -1102,6 +1139,24 @@ h2 {
     padding: 8px;
     gap: 0;
     font-size: 0;
+  }
+
+  .topbar-actions {
+    gap: 8px;
+  }
+
+  .current-user {
+    max-width: 86px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+  }
+
+  .logout-button {
+    min-height: 33px;
+    padding: 0 9px;
+    font-size: 11px;
   }
 
   h1 {
