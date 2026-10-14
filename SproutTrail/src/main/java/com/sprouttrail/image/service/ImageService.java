@@ -1,6 +1,7 @@
 package com.sprouttrail.image.service;
 
 import com.sprouttrail.image.model.response.GeneratedImage;
+import com.sprouttrail.image.model.response.ImageHistoryResponse;
 import com.sprouttrail.image.model.enums.ImageAspectRatio;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -28,4 +29,10 @@ public interface ImageService {
      * @return 图片文件名、二进制内容及 MinIO 地址
      */
     GeneratedImage edit(MultipartFile upload, String prompt, ImageAspectRatio aspectRatio);
+
+    /** 查询指定用户的文生图历史记录。 */
+    ImageHistoryResponse getHistory(Long userId, int page, int pageSize);
+
+    /** 下载当前用户拥有的历史图片。 */
+    GeneratedImage downloadHistoryImage(Long userId, Long recordId);
 }

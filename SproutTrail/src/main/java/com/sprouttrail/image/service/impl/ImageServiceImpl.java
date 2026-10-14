@@ -1,12 +1,16 @@
 package com.sprouttrail.image.service.impl;
 
+import cn.dev33.satoken.stp.StpUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.sprouttrail.image.config.ImageModelConfig;
 import com.sprouttrail.image.config.ImageProperties;
 import com.sprouttrail.image.exception.ImageWorkflowException;
 import com.sprouttrail.image.mapper.ImageGenerationRecordMapper;
-import com.sprouttrail.image.model.response.GeneratedImage;
 import com.sprouttrail.image.model.entity.ImageGenerationRecord;
 import com.sprouttrail.image.model.enums.ImageAspectRatio;
+import com.sprouttrail.image.model.response.GeneratedImage;
+import com.sprouttrail.image.model.response.ImageHistoryItem;
+import com.sprouttrail.image.model.response.ImageHistoryResponse;
 import com.sprouttrail.image.service.ImageService;
 import com.sprouttrail.image.service.MinioService;
 import dev.langchain4j.data.image.Image;
@@ -19,18 +23,21 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.MemoryCacheImageInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Base64;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -90,6 +97,7 @@ public class ImageServiceImpl implements ImageService {
         Image image = callImageModel(optimizedPrompt, aspectRatio);
         GeneratedImage generatedImage = saveImage(image, startedAt);
         ImageGenerationRecord record = ImageGenerationRecord.builder()
+                .userId(StpUtil.getLoginIdAsLong())
                 .originalPrompt(originalPrompt)
                 .optimizedPrompt(optimizedPrompt)
                 .minioImageUrl(generatedImage.getMinioUrl())
@@ -97,6 +105,65 @@ public class ImageServiceImpl implements ImageService {
                 .build();
         imageGenerationRecordMapper.insert(record);
         return generatedImage;
+    }
+
+    /**
+     * 只查询当前用户拥有的文生图记录，并多取一条用于判断是否还有下一页。
+     * 页码和页大小在拼入 LIMIT 子句前已完成边界校验。
+     */
+    @Override
+    public ImageHistoryResponse getHistory(Long userId, int page, int pageSize) {
+        if (page < 1 || pageSize < 1 || pageSize > 50) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "页码需大于 0，页大小需为 1～50");
+        }
+
+        long offset = ((long) page - 1) * pageSize;
+        List<ImageGenerationRecord> records = imageGenerationRecordMapper.selectList(
+                new LambdaQueryWrapper<ImageGenerationRecord>()
+                        .eq(ImageGenerationRecord::getUserId, userId)
+                        .orderByDesc(ImageGenerationRecord::getCreatedAt)
+                        .orderByDesc(ImageGenerationRecord::getId)
+                        .last("LIMIT " + (pageSize + 1) + " OFFSET " + offset));
+
+        boolean hasMore = records.size() > pageSize;
+        List<ImageGenerationRecord> pageRecords = hasMore
+                ? records.subList(0, pageSize)
+                : records;
+        List<ImageHistoryItem> items = pageRecords.stream()
+                .map(record -> new ImageHistoryItem(record.getId(), record.getOriginalPrompt(),
+                        record.getOptimizedPrompt(), record.getMinioImageUrl(), record.getAspectRatio(),
+                        record.getCreatedAt()))
+                .toList();
+        return new ImageHistoryResponse(items, page, pageSize, hasMore);
+    }
+
+    /** 下载前再次按用户 ID 过滤，避免通过猜测记录 ID 获取其他用户的图片。 */
+    @Override
+    public GeneratedImage downloadHistoryImage(Long userId, Long recordId) {
+        ImageGenerationRecord record = imageGenerationRecordMapper.selectOne(
+                new LambdaQueryWrapper<ImageGenerationRecord>()
+                        .eq(ImageGenerationRecord::getId, recordId)
+                        .eq(ImageGenerationRecord::getUserId, userId));
+        if (record == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "没有找到这张图片");
+        }
+
+        try {
+            String imagePath = URI.create(record.getMinioImageUrl()).getPath();
+            String filename = imagePath.substring(imagePath.lastIndexOf('/') + 1);
+            if (!filename.matches("[a-fA-F0-9-]{36}\\.png")) {
+                throw new ImageWorkflowException("IMAGE_STORAGE_FAILED", HttpStatus.BAD_GATEWAY,
+                        "图片地址无效，暂时无法下载");
+            }
+            try (InputStream stream = minioService.downloadFile(filename)) {
+                return new GeneratedImage(filename, stream.readAllBytes(), record.getMinioImageUrl());
+            }
+        } catch (ImageWorkflowException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new ImageWorkflowException("IMAGE_STORAGE_FAILED", HttpStatus.BAD_GATEWAY,
+                    "图片下载失败，请稍后重试", exception);
+        }
     }
 
     /**

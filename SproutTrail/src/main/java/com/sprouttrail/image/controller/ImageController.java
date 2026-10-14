@@ -1,9 +1,10 @@
 package com.sprouttrail.image.controller;
 
-import com.sprouttrail.image.model.enums.ImageAspectRatio;
+import cn.dev33.satoken.stp.StpUtil;
 import com.sprouttrail.image.model.request.EditImageRequest;
 import com.sprouttrail.image.model.request.GenerateImageRequest;
 import com.sprouttrail.image.model.response.GeneratedImage;
+import com.sprouttrail.image.model.response.ImageHistoryResponse;
 import com.sprouttrail.image.service.ImageService;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
@@ -55,7 +56,39 @@ public class ImageController {
                 request.effectiveAspectRatio()));
     }
 
-    /** 两种生成方式共用相同的预览、下载及文件名响应结构。 */
+    /**
+     * 查询当前登录用户的文生图历史记录
+     * @param page
+     * @param pageSize
+     * @return
+     */
+    @GetMapping("/history")
+    public ImageHistoryResponse history(@RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "20") int pageSize) {
+        return imageService.getHistory(StpUtil.getLoginIdAsLong(), page, pageSize);
+    }
+
+    /**
+     * 下载当前登录用户拥有的历史图片
+     * @param recordId
+     * @return
+     */
+    @GetMapping("/history/{recordId}/download")
+    public ResponseEntity<byte[]> downloadHistoryImage(@PathVariable Long recordId) {
+        GeneratedImage generatedImage = imageService.downloadHistoryImage(StpUtil.getLoginIdAsLong(), recordId);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.IMAGE_PNG);
+        headers.setCacheControl(CacheControl.noStore());
+        headers.setContentDisposition(ContentDisposition.attachment()
+                .filename(generatedImage.getFilename())
+                .build());
+        return ResponseEntity.ok().headers(headers).body(generatedImage.getBytes());
+    }
+
+    /**
+     * 两种生成方式共用相同的预览、下载及文件名响应结构
+     * @param generatedImage
+     * @return
+     */
     private ResponseEntity<byte[]> imageResponse(GeneratedImage generatedImage) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.IMAGE_PNG);

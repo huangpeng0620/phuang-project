@@ -58,7 +58,7 @@ http://localhost:8080
 ```
 
 生成结果会上传到 `application.yml` 中配置的 MinIO bucket。
-MySQL 连接配置位于 `application.yml` 的 `spring.datasource` 下；应用启动时会自动创建缺少的记录表。
+MySQL 连接配置位于 `application.yml` 的 `spring.datasource` 下；应用启动时会自动创建缺少的记录表。已存在的数据库需要先执行一次 `src/main/resources/db/manual/001_add_image_generation_user_id.sql`，为图片记录增加用户归属字段；已有的旧记录不会显示在用户历史中。
 
 ## Linux 服务器部署
 
@@ -120,6 +120,17 @@ Content-Type: application/json
 注册接口为 `POST /api/auth/register`，请求字段同样为 `username` 和 `password`。注册成功返回 HTTP 201；新账号需要再通过登录接口获取 token。
 
 成功响应包含 `tokenName`、`tokenValue`、用户 ID 和 token 有效期。后续请求需要在 `satoken` 请求头中携带 `tokenValue`。`POST /api/auth/logout` 注销当前会话；`GET /api/auth/token` 查询当前 token 和用户信息。图片生成、图片优化及提示词优化接口都要求登录。
+
+### 我的图片
+
+登录后访问 `http://localhost:8080/history.html` 查看当前账号的文生图记录。页面支持预览、下载、复制提示词和继续创作；图片优化结果目前不会加入此列表。
+
+```http
+GET /api/images/history?page=1&pageSize=20
+GET /api/images/history/{recordId}/download
+```
+
+记录归属由服务端从 Sa-Token 会话中读取，不接受客户端传入的用户 ID。分页大小最大为 50 条。
 
 优化接口只返回三个文字补充建议，不会生成图片：
 

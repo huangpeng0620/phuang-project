@@ -118,6 +118,17 @@ button {
   font-weight: 600;
 }
 
+.history-link {
+  color: #40583a;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.history-link:hover {
+  text-decoration: underline;
+}
+
 .logout-button {
   min-height: 36px;
   padding: 0 12px;
@@ -1136,9 +1147,7 @@ h2 {
   }
 
   .status-pill {
-    padding: 8px;
-    gap: 0;
-    font-size: 0;
+    display: none;
   }
 
   .topbar-actions {
@@ -1150,6 +1159,10 @@ h2 {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: 11px;
+  }
+
+  .history-link {
     font-size: 11px;
   }
 
@@ -1191,6 +1204,16 @@ h2 {
 
   .canvas-stage {
     border-radius: 18px;
+  }
+}
+
+@media (max-width: 380px) {
+  .page-shell {
+    padding-inline: 14px;
+  }
+
+  .current-user {
+    display: none;
   }
 }
 

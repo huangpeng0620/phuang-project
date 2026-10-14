@@ -27,6 +27,10 @@ public class ImageGenerationRecord {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
+    /** 创建记录的用户；旧记录可能为空，新的生成记录必须写入当前用户 ID。 */
+    @TableField("user_id")
+    private Long userId;
+
     /** 用户输入且不做修改的原始提示词。 */
     @TableField("original_prompt")
     private String originalPrompt;

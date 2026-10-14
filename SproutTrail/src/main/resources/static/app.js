@@ -632,5 +632,14 @@ window.addEventListener("beforeunload", () => {
   if (uploadedImageUrl) URL.revokeObjectURL(uploadedImageUrl);
 });
 
+const reusedPrompt = new URLSearchParams(window.location.search).get("prompt");
+const reusedAspectRatio = new URLSearchParams(window.location.search).get("aspectRatio");
+if (reusedPrompt !== null) promptInput.value = reusedPrompt;
+if (reusedAspectRatio) {
+  const ratioInput = [...aspectRatioInputs].find((input) => input.value === reusedAspectRatio);
+  if (ratioInput) ratioInput.checked = true;
+}
+if (reusedPrompt !== null || reusedAspectRatio) window.history.replaceState({}, "", "/");
+
 syncPromptState();
 syncAspectRatioSummary();
