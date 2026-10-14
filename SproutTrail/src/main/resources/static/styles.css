@@ -451,6 +451,84 @@ textarea:focus {
   background: rgba(255, 255, 255, 0.5);
 }
 
+/* 风格预设作为可见的提示词补充项，仅用于文字生成。 */
+
+.style-fieldset {
+  min-width: 0;
+  margin: 22px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.style-fieldset legend {
+  margin-bottom: 10px;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.style-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.style-option {
+  cursor: pointer;
+}
+
+.style-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.style-option span {
+  display: block;
+  padding: 7px 11px;
+  border: 1px solid #dce1d8;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.54);
+  color: #667064;
+  font-size: 11px;
+  font-weight: 650;
+  transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
+}
+
+.style-option:hover span {
+  border-color: #aebba2;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.style-option input:checked + span {
+  border-color: #6f8f51;
+  background: rgba(201, 242, 120, 0.24);
+  color: #304229;
+  box-shadow: 0 0 0 2px rgba(111, 143, 81, 0.09);
+}
+
+.style-option input:focus-visible + span {
+  outline: 3px solid rgba(88, 118, 81, 0.24);
+  outline-offset: 2px;
+}
+
+.style-option input:disabled + span {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.style-description {
+  min-height: 18px;
+  margin: 8px 0 0;
+  color: #858d82;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
 /* 图片画幅选择 */
 
 .ratio-fieldset {
@@ -759,6 +837,10 @@ textarea:focus {
 .preview-field-head span:last-child {
   color: #969c94;
   font-weight: 500;
+}
+
+.preview-field-head .is-over-limit {
+  color: var(--danger);
 }
 
 .prompt-preview pre {

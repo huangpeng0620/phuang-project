@@ -55,6 +55,9 @@ const generateButtonLabel = generateButton.querySelector("span");
 const clearButton = document.querySelector("#clear-prompt");
 const exampleButtons = document.querySelectorAll("[data-prompt]");
 const aspectRatioInputs = document.querySelectorAll('input[name="aspect-ratio"]');
+const styleFieldset = document.querySelector("#style-fieldset");
+const stylePresetInputs = document.querySelectorAll('input[name="style-preset"]');
+const styleDescription = document.querySelector("#style-description");
 const form = document.querySelector("#generate-form");
 const suggestionSection = document.querySelector("#suggestion-section");
 const suggestionStatus = document.querySelector("#suggestion-status");
@@ -126,9 +129,54 @@ const aspectRatioDetails = Object.freeze({
   LANDSCAPE_4_3: { label: "4:3", size: "1152 × 864" }
 });
 
+const MAX_SUPPLEMENT_LENGTH = 1200;
+const stylePresets = Object.freeze({
+  NONE: {
+    label: "不限定",
+    supplement: "",
+    description: "不额外添加风格描述，按原始提示词生成。"
+  },
+  PHOTOREALISTIC: {
+    label: "写实摄影",
+    supplement: "风格预设：写实摄影。使用自然可信的光影、真实材质与清晰的摄影细节，避免插画化表现。"
+  },
+  CINEMATIC: {
+    label: "电影感",
+    supplement: "风格预设：电影感画面。使用有层次的光影、克制的电影色彩和具有叙事性的镜头构图。"
+  },
+  ANIME: {
+    label: "动漫插画",
+    supplement: "风格预设：精致动漫插画。使用清晰线稿、细腻上色和富有表现力的角色与场景设计。"
+  },
+  WATERCOLOR: {
+    label: "水彩插画",
+    supplement: "风格预设：水彩插画。使用自然晕染、通透色彩、柔和纸张纹理和轻盈的手绘笔触。"
+  },
+  THREE_D: {
+    label: "3D 渲染",
+    supplement: "风格预设：高品质 3D 渲染。强调立体造型、真实材质、空间光照和精细的渲染细节。"
+  },
+  MINIMAL_POSTER: {
+    label: "极简海报",
+    supplement: "风格预设：极简海报。使用简洁几何构图、有限配色、清晰视觉层级和充足留白。"
+  }
+});
+
 /** 获取当前选中的服务端画幅枚举值。 */
 function selectedAspectRatio() {
   return document.querySelector('input[name="aspect-ratio"]:checked')?.value || "SQUARE";
+}
+
+/** 获取当前风格，并把风格说明作为用户可见的提示词补充内容。 */
+function selectedStylePreset() {
+  const key = document.querySelector('input[name="style-preset"]:checked')?.value || "NONE";
+  return stylePresets[key] || stylePresets.NONE;
+}
+
+function composeSupplement(supplement = "") {
+  return [supplement, selectedStylePreset().supplement]
+    .filter((part) => part && part.trim())
+    .join("\n\n");
 }
 
 /** 在尚未生成图片时同步右侧的尺寸提示。 */
@@ -157,6 +205,9 @@ function syncPromptState() {
   aspectRatioInputs.forEach((input) => {
     input.disabled = isBusy;
   });
+  stylePresetInputs.forEach((input) => {
+    input.disabled = isBusy;
+  });
   optimizeButton.disabled = isBusy || !hasPrompt;
   generateButton.disabled = isBusy || !hasPrompt || (workflowMode === "EDIT" && !uploadedFile);
   modeButtons.forEach((button) => { button.disabled = isBusy; });
@@ -169,7 +220,8 @@ function syncPromptState() {
   supplementEditor.disabled = isBusy || selectedSuggestionIndex < 0;
   confirmGenerateButton.disabled = isBusy
     || selectedSuggestionIndex < 0
-    || !supplementEditor.value.trim();
+    || !supplementEditor.value.trim()
+    || composeSupplement(supplementEditor.value).length > MAX_SUPPLEMENT_LENGTH;
 }
 
 /**
@@ -225,12 +277,13 @@ function switchMode(mode) {
     : generationPlaceholder;
   uploadSection.hidden = !isEditing;
   promptExamples.hidden = isEditing;
+  styleFieldset.hidden = isEditing;
   optimizeButton.hidden = isEditing;
   actionRow.classList.toggle("single-action", isEditing);
   generateButtonLabel.textContent = isEditing ? "优化图片" : "使用原文生成";
   formNote.textContent = isEditing
     ? "编辑要求将原样提交；优化结果会保存，可与原图切换对比。"
-    : "原文会保持不变；优化建议需由你选择并确认后才会用于生成";
+    : "原文会保持不变；风格预设会作为补充内容追加，AI 建议需确认后才会用于生成";
   emptyTitle.textContent = isEditing ? "等待你的原图" : "等待你的灵感";
   emptyDescription.textContent = isEditing
     ? "上传原图并输入编辑要求，优化结果会出现在这里"
@@ -325,6 +378,7 @@ function clearSuggestions() {
   originalPromptPreview.textContent = "";
   supplementEditor.value = "";
   supplementCount.textContent = "0 / 1200";
+  supplementCount.classList.remove("is-over-limit");
   finalPrompt.textContent = "";
   syncPromptState();
 }
@@ -335,11 +389,24 @@ function clearSuggestions() {
  */
 function updatePromptPreview() {
   const editedSupplement = supplementEditor.value;
-  supplementCount.textContent = `${editedSupplement.length} / 1200`;
-  finalPrompt.textContent = editedSupplement.trim()
-    ? `${promptInput.value}\n\n${editedSupplement}`
+  const finalSupplement = composeSupplement(editedSupplement);
+  const hasStylePreset = Boolean(selectedStylePreset().supplement);
+  supplementCount.textContent = `${finalSupplement.length} / ${MAX_SUPPLEMENT_LENGTH}${hasStylePreset ? "（含风格）" : ""}`;
+  supplementCount.classList.toggle("is-over-limit", finalSupplement.length > MAX_SUPPLEMENT_LENGTH);
+  finalPrompt.textContent = finalSupplement
+    ? `${promptInput.value}\n\n${finalSupplement}`
     : promptInput.value;
   syncPromptState();
+}
+
+function syncStylePreset() {
+  const preset = selectedStylePreset();
+  styleDescription.textContent = preset.description || preset.supplement;
+  if (promptPreview.hidden) {
+    syncPromptState();
+  } else {
+    updatePromptPreview();
+  }
 }
 
 /** 选中建议后，将其补充内容放入编辑框供用户二次调整。 */
@@ -458,8 +525,16 @@ async function generateImage(originalPrompt, supplement = "") {
   const isEditing = workflowMode === "EDIT";
   if (isEditing && !uploadedFile) return;
 
+  const finalSupplement = isEditing ? "" : composeSupplement(supplement);
+  if (finalSupplement.length > MAX_SUPPLEMENT_LENGTH) {
+    suggestionStatus.textContent = `AI 补充内容和风格预设合计不能超过 ${MAX_SUPPLEMENT_LENGTH} 个字符`;
+    updatePromptPreview();
+    return;
+  }
+
   const aspectRatio = selectedAspectRatio();
   const ratioDetails = aspectRatioDetails[aspectRatio];
+  const stylePreset = selectedStylePreset();
   isGenerating = true;
   generateButtonLabel.textContent = isEditing ? "优化中…" : "生成中…";
   confirmGenerateButton.textContent = "正在生成图片…";
@@ -481,7 +556,7 @@ async function generateImage(originalPrompt, supplement = "") {
       requestBody.append("prompt", originalPrompt);
       requestBody.append("aspectRatio", aspectRatio);
     } else {
-      requestBody = JSON.stringify({ prompt: originalPrompt, supplement, aspectRatio });
+      requestBody = JSON.stringify({ prompt: originalPrompt, supplement: finalSupplement, aspectRatio });
     }
     const response = await authenticatedFetch(isEditing ? "/api/images/edit" : "/api/images/generate", {
       method: "POST",
@@ -511,7 +586,8 @@ async function generateImage(originalPrompt, supplement = "") {
     downloadLink.title = isEditing ? "下载优化结果" : "下载图片";
     downloadLink.setAttribute("aria-label", downloadLink.title);
     currentResultFilename = filename;
-    resultDetails = `图片已保存 · ${ratioDetails.label} · PNG`;
+    const styleLabel = !isEditing && stylePreset !== stylePresets.NONE ? ` · ${stylePreset.label}` : "";
+    resultDetails = `图片已保存 · ${ratioDetails.label}${styleLabel} · PNG`;
     displayResult();
     hasGeneratedOnce = true;
     showCanvasState("result");
@@ -552,6 +628,10 @@ exampleButtons.forEach((button) => {
 
 aspectRatioInputs.forEach((input) => {
   input.addEventListener("change", syncAspectRatioSummary);
+});
+
+stylePresetInputs.forEach((input) => {
+  input.addEventListener("change", syncStylePreset);
 });
 
 form.addEventListener("submit", (event) => {
@@ -643,3 +723,4 @@ if (reusedPrompt !== null || reusedAspectRatio) window.history.replaceState({}, 
 
 syncPromptState();
 syncAspectRatioSummary();
+syncStylePreset();

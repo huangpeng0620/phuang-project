@@ -86,6 +86,41 @@
               <button type="button" data-prompt="一只戴着圆框眼镜的橘猫程序员，坐在书桌前写代码，温暖插画风格">程序员橘猫</button>
             </div>
 
+            <fieldset class="style-fieldset" id="style-fieldset">
+              <legend>风格预设</legend>
+              <div class="style-options">
+                <label class="style-option">
+                  <input type="radio" name="style-preset" value="NONE" checked />
+                  <span>不限定</span>
+                </label>
+                <label class="style-option">
+                  <input type="radio" name="style-preset" value="PHOTOREALISTIC" />
+                  <span>写实摄影</span>
+                </label>
+                <label class="style-option">
+                  <input type="radio" name="style-preset" value="CINEMATIC" />
+                  <span>电影感</span>
+                </label>
+                <label class="style-option">
+                  <input type="radio" name="style-preset" value="ANIME" />
+                  <span>动漫插画</span>
+                </label>
+                <label class="style-option">
+                  <input type="radio" name="style-preset" value="WATERCOLOR" />
+                  <span>水彩插画</span>
+                </label>
+                <label class="style-option">
+                  <input type="radio" name="style-preset" value="THREE_D" />
+                  <span>3D 渲染</span>
+                </label>
+                <label class="style-option">
+                  <input type="radio" name="style-preset" value="MINIMAL_POSTER" />
+                  <span>极简海报</span>
+                </label>
+              </div>
+              <p class="style-description" id="style-description">不额外添加风格描述，按原始提示词生成。</p>
+            </fieldset>
+
             <fieldset class="ratio-fieldset">
               <legend>画面比例</legend>
               <div class="ratio-options">
@@ -139,7 +174,7 @@
                 <span>使用原文生成</span>
               </button>
             </div>
-            <p class="form-note" id="form-note">原文会保持不变；优化建议需由你选择并确认后才会用于生成</p>
+            <p class="form-note" id="form-note">原文会保持不变；风格预设会作为补充内容追加，AI 建议需确认后才会用于生成</p>
 
             <section class="suggestion-section" id="suggestion-section" hidden aria-labelledby="suggestion-title">
               <div class="suggestion-heading">
