@@ -18,15 +18,20 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class SpringAiConfig {
 
-    private final String DEEPSEEK_R1_MODEL = "deepseek-r1";
-
     @Value("${spring.ai.dashscope.api-key}")
     private String apiKey;
+
+    @Value("${spring.ai.dashscope.base-url}")
+    private String baseUrl;
+
+    @Value("${spring.ai.dashscope.chat.options.model}")
+    private String model;
 
     @Bean
     public DashScopeApi dashScopeApi() {
         return DashScopeApi.builder()
                 .apiKey(apiKey)
+                .baseUrl(baseUrl)
                 .build();
     }
 
@@ -34,14 +39,15 @@ public class SpringAiConfig {
     public ChatModel deepSeekR1ChatModel(@Qualifier("dashScopeApi") DashScopeApi dashScopeApi) {
         return DashScopeChatModel.builder()
                 .dashScopeApi(dashScopeApi)
-                .defaultOptions(DashScopeChatOptions.builder().withModel(DEEPSEEK_R1_MODEL).build())
+                .defaultOptions(DashScopeChatOptions.builder()
+                        .withModel(model).build())
                 .build();
     }
 
     @Bean(name = "deepSeekR1ChatClient")
     public ChatClient deepSeekR1ChatClient(@Qualifier("deepSeekR1ChatModel") ChatModel deepSeekR1ChatModel) {
         return ChatClient.builder(deepSeekR1ChatModel)
-                .defaultOptions(ChatOptions.builder().model(DEEPSEEK_R1_MODEL).build())
+                .defaultOptions(ChatOptions.builder().model(model).build())
                 .build();
     }
 

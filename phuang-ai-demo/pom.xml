@@ -16,6 +16,7 @@
         <module>rag</module>
         <module>ai-framework/langchain4j</module>
         <module>ai-framework/spring-ai</module>
+        <module>ai-framework/spring-ai-graph</module>
         <module>agent/KnowEngine</module>
         <module>ai-framework/spring-ai-agent</module>
     </modules>

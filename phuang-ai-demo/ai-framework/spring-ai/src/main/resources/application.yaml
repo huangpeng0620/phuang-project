@@ -5,12 +5,12 @@ server.servlet.encoding.force: true
 server.servlet.encoding.charset: UTF-8
 
 #项目名称
-spring.application.name: saa-message
+spring.application.name: spring-ai
 
 #SpringAIAlibaba config
-spring.ai.dashscope.api-key: @dashscope.api.key@
-spring.ai.dashscope.base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-spring.ai.dashscope.chat.options.model: deepseek-r1
+spring.ai.dashscope.api-key: sk-d1e56d0012004a2cbdf6b3ddb2a8cc3d
+spring.ai.dashscope.base-url: https://llm-yjcrddyghy0vh1ul.cn-beijing.maas.aliyuncs.com
+spring.ai.dashscope.chat.options.model: qwen-plus
 
 spring.ai.chat.memory.repository.jdbc.platform: mysql
 spring.ai.chat.memory.repository.jdbc.initialize-schema: ALWAYS  #启动时初始化表结构

@@ -1,0 +1,6 @@
+spring:
+  application:
+    name: spring-ai-graph
+
+server:
+  port: 8084
