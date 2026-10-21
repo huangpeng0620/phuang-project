@@ -13,7 +13,7 @@
 
     <artifactId>spring-ai-graph</artifactId>
     <name>spring-ai-graph</name>
-    <description>Spring AI Alibaba Graph routing and checkpoint example</description>
+    <description>Spring AI Alibaba Graph customer-email workflow example</description>
 
     <properties>
         <spring-ai.version>1.1.2</spring-ai.version>
@@ -29,6 +29,11 @@
             <groupId>com.alibaba.cloud.ai</groupId>
             <artifactId>spring-ai-alibaba-graph-core</artifactId>
             <version>${spring-ai-alibaba-graph.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.cloud.ai</groupId>
+            <artifactId>spring-ai-alibaba-starter-dashscope</artifactId>
+            <version>1.1.2.1</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
