@@ -19,6 +19,7 @@
         <module>ai-framework/spring-ai-graph</module>
         <module>agent/KnowEngine</module>
         <module>ai-framework/spring-ai-agent</module>
+        <module>ai-framework/agentscope-v1</module>
     </modules>
 
     <properties>

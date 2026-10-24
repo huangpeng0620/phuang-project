@@ -1,0 +1,14 @@
+server.port: 9006
+# 大模型对话中文乱码 UTF-8 编码处理
+server.servlet.encoding.enabled: true
+server.servlet.encoding.force: true
+server.servlet.encoding.charset: UTF-8
+
+# 项目名称
+spring.application.name: agent-scope-v1
+
+dash-scope.chat-model.api-key: @dashscope.api.key@
+dash-scope.chat-model.url: https://llm-yjcrddyghy0vh1ul.cn-beijing.maas.aliyuncs.com
+dash-scope.chat-model.qianwen-model-name: qwen-plus
+# 配置后会创建 deepseekChatModel Bean
+dash-scope.chat-model.deepseek-model-name: deepseek-r1
