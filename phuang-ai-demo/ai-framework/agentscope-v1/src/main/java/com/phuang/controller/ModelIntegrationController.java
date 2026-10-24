@@ -33,8 +33,7 @@ public class ModelIntegrationController {
                 .model(qianwenChatModel)
                 .toolkit(toolkit)
                 .build();
-        Msg msg = reActAgent.call(Msg.builder()
-                        .textContent(message).build())
+        Msg msg = reActAgent.call(Msg.builder().textContent(message).build())
                 .block();
         return msg.getTextContent();
     }

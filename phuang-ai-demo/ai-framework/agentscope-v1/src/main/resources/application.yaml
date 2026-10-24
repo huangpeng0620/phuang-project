@@ -10,5 +10,10 @@ spring.application.name: agent-scope-v1
 dash-scope.chat-model.api-key: @dashscope.api.key@
 dash-scope.chat-model.url: https://llm-yjcrddyghy0vh1ul.cn-beijing.maas.aliyuncs.com
 dash-scope.chat-model.qianwen-model-name: qwen-plus
-# 配置后会创建 deepseekChatModel Bean
 dash-scope.chat-model.deepseek-model-name: deepseek-r1
+
+# mysql连接信息
+spring.datasource.url: jdbc:mysql://8.136.10.85:3306/agentscope?useUnicode=true&characterEncoding=UTF-8
+spring.datasource.username: root
+spring.datasource.password: Hya260511
+spring.datasource.driver-class-name: com.mysql.cj.jdbc.Driver
