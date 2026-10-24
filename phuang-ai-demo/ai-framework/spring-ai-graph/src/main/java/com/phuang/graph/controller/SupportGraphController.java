@@ -2,6 +2,7 @@ package com.phuang.graph.controller;
 
 import com.alibaba.cloud.ai.graph.CompiledGraph;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
+import com.alibaba.cloud.ai.graph.checkpoint.savers.mysql.MysqlSaver;
 import com.alibaba.cloud.ai.graph.state.StateSnapshot;
 import jakarta.annotation.Resource;
 import org.springframework.http.HttpStatus;
@@ -24,14 +25,16 @@ public class SupportGraphController {
     @Resource(name = "supportGraph")
     private CompiledGraph supportGraph;
 
-    /** 启动一封新邮件的工作流；Graph 遇到人工审核节点时会暂停并返回当前状态。 */
+    @Resource(name = "mysqlSaver")
+    private MysqlSaver mysqlSaver;
+
+    /**
+     * 启动一封新邮件的工作流；Graph 遇到人工审核节点时会暂停并返回当前状态
+     * @param request
+     * @return
+     */
     @PostMapping("/run")
     public GraphStateResponse run(@RequestBody GraphRunRequest request) {
-        requireText(request.threadId(), "threadId");
-        requireText(request.emailId(), "emailId");
-        requireText(request.senderEmail(), "senderEmail");
-        requireText(request.emailContent(), "emailContent");
-
         // threadId 是 checkpoint 的会话键；查询状态或恢复运行时必须复用同一个值。
         RunnableConfig config = configFor(request.threadId());
         Map<String, Object> initialState = Map.of(
@@ -43,16 +46,25 @@ public class SupportGraphController {
 
         // blockLast 等待本次可运行部分结束；若在 human_review 前中断，也会正常返回。
         supportGraph.stream(initialState, config).blockLast();
+        //OverAllState overAllState = supportGraph.invoke(initialState, config).orElse(null);
         return currentState(request.threadId());
     }
 
-    /** 读取指定邮件会话当前 checkpoint，适合查看工作流暂停在哪个节点/等待哪一步。 */
+    /**
+     * 读取指定邮件会话当前 checkpoint，适合查看工作流暂停在哪个节点/等待哪一步。
+     * @param threadId
+     * @return
+     */
     @GetMapping("/state/{threadId}")
     public GraphStateResponse getState(@PathVariable String threadId) {
         return currentState(threadId);
     }
 
-    /** 返回同一个 threadId 下保存的所有执行快照，便于学习每个节点如何更新共享状态。 */
+    /**
+     * 返回同一个 threadId 下保存的所有执行快照，便于学习每个节点如何更新共享状态
+     * @param threadId
+     * @return
+     */
     @GetMapping("/history/{threadId}")
     public List<GraphStateResponse> getHistory(@PathVariable String threadId) {
         RunnableConfig config = configFor(threadId);
@@ -111,18 +123,11 @@ public class SupportGraphController {
     }
 
     private RunnableConfig configFor(String threadId) {
-        requireText(threadId, "threadId");
         return RunnableConfig.builder()
                 .threadId(threadId)
                 // metadata 是附加运行上下文，与 Graph 的共享 state/checkpoint 是两类不同数据。
                 .addMetadata("source", "rest-api")
                 .build();
-    }
-
-    private void requireText(String value, String fieldName) {
-        if (!StringUtils.hasText(value)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " 不能为空");
-        }
     }
 
     public record GraphRunRequest(String threadId, String emailId, String senderEmail, String emailContent) {

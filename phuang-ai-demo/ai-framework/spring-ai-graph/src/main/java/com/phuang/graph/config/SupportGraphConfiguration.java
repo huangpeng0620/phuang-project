@@ -7,6 +7,8 @@ import com.alibaba.cloud.ai.graph.KeyStrategyFactory;
 import com.alibaba.cloud.ai.graph.StateGraph;
 import com.alibaba.cloud.ai.graph.checkpoint.config.SaverConfig;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
+import com.alibaba.cloud.ai.graph.checkpoint.savers.mysql.CreateOption;
+import com.alibaba.cloud.ai.graph.checkpoint.savers.mysql.MysqlSaver;
 import com.alibaba.cloud.ai.graph.exception.GraphStateException;
 import com.alibaba.cloud.ai.graph.state.strategy.AppendStrategy;
 import com.alibaba.cloud.ai.graph.state.strategy.ReplaceStrategy;
@@ -15,6 +17,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import javax.sql.DataSource;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,7 +32,16 @@ import static com.phuang.graph.workflow.EmailWorkflowState.*;
 public class SupportGraphConfiguration {
 
     @Bean
-    public CompiledGraph supportGraph(ChatClient.Builder chatClientBuilder) throws GraphStateException {
+    public MysqlSaver mysqlSaver(DataSource dataSource) {
+        return MysqlSaver.builder()
+                .dataSource(dataSource)
+                // 不存在时创建 Graph 所需的表和索引
+                .createOption(CreateOption.CREATE_IF_NOT_EXISTS)
+                .build();
+    }
+
+    @Bean
+    public CompiledGraph supportGraph(ChatClient.Builder chatClientBuilder, MysqlSaver mysqlSaver) throws GraphStateException {
         // 各节点共享同一个 ChatClient；目前只有“分类”和“草拟回复”会调用大模型。
         EmailWorkflowNodes nodes = new EmailWorkflowNodes(chatClientBuilder.build());
 
@@ -71,9 +83,9 @@ public class SupportGraphConfiguration {
                 )
                 .addEdge(SEND_REPLY, END);
 
-        // MemorySaver 会按 RunnableConfig.threadId 隔离并保存每封邮件的中间状态。
+        // 持久化配置
         SaverConfig saverConfig = SaverConfig.builder()
-                .register(new MemorySaver())
+                .register(mysqlSaver)
                 .build();
 
         return graph.compile(CompileConfig.builder()
