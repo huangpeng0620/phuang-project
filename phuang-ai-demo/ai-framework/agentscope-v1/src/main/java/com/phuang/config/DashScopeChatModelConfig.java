@@ -1,6 +1,7 @@
 package com.phuang.config;
 
-import io.agentscope.extensions.model.dashscope.DashScopeChatModel;
+import io.agentscope.core.model.DashScopeChatModel;
+import io.agentscope.core.model.EndpointType;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -39,6 +40,7 @@ public class DashScopeChatModelConfig {
                 .apiKey(apiKey)
                 .baseUrl(url)
                 .modelName(modelName)
+                .endpointType(EndpointType.AUTO)
                 .build();
     }
 }
