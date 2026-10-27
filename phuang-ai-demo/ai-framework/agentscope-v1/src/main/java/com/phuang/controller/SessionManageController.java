@@ -37,7 +37,6 @@ public class SessionManageController {
     @GetMapping("jsonSession/singleChat")
     public String jsonSessionSingleChat(@RequestParam("message") String message,
                                         @RequestParam("sessionId") String sessionId) {
-
         InMemoryMemory memory = new InMemoryMemory();
 
         Toolkit toolkit = new Toolkit();
@@ -48,15 +47,20 @@ public class SessionManageController {
                 .toolkit(toolkit)
                 .memory(memory)
                 .build();
+
+        //当前项目的相对路径
         Path sessionPath = Path.of("ai-framework", "agentscope-v1", "jsonSession");
         Session jsonSession = new JsonSession(sessionPath);
+
         //加载会话
         reActAgent.loadIfExists(jsonSession, sessionId);
 
+        // 调用agent
         Msg msg = reActAgent.call(Msg.builder()
                         .role(MsgRole.USER)
                         .textContent(message).build())
                 .block();
+
         //保存会话
         reActAgent.saveTo(jsonSession, sessionId);
         return msg.getTextContent();
@@ -65,7 +69,6 @@ public class SessionManageController {
     @GetMapping("mysqlSession/singleChat")
     public String mysqlSessionSingleChat(@RequestParam("message") String message,
                                          @RequestParam("sessionId") String sessionId) {
-
         InMemoryMemory memory = new InMemoryMemory();
 
         Toolkit toolkit = new Toolkit();
@@ -76,13 +79,17 @@ public class SessionManageController {
                 .toolkit(toolkit)
                 .memory(memory)
                 .build();
+
         //加载会话
         reActAgent.loadIfExists(mysqlSession, sessionId);
 
+        // 调用agent
         Msg msg = reActAgent.call(Msg.builder()
                         .role(MsgRole.USER)
                         .textContent(message).build())
                 .block();
+
+        //保存会话
         reActAgent.saveTo(mysqlSession, sessionId);
         return msg.getTextContent();
     }
