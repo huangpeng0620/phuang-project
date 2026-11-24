@@ -1,7 +1,9 @@
 package com.phuang.bussiness.auth.service;
 
+import cn.dev33.satoken.secure.BCrypt;
 import cn.dev33.satoken.stp.StpUtil;
 import com.phuang.bussiness.auth.entity.UserAccount;
+import com.phuang.bussiness.auth.entity.UserRole;
 import com.phuang.bussiness.auth.mapper.UserAccountMapper;
 import jakarta.annotation.Resource;
 import org.slf4j.Logger;
@@ -11,7 +13,7 @@ import org.springframework.stereotype.Service;
 /**
  * 登录认证服务，使用 Sa-Token 管理会话。
  * loginId 存储为 userId（关联 user_profile.user_id），
- * 后续通过 StpUtil.getLoginIdAsString() 即可在任意层获取当前用户 ID。
+ * 后续通过 StpUtil.getLoginIdAsString() 即可在任意层获取当前用户 ID
  *
  * @author huangpeng
  */
@@ -24,7 +26,7 @@ public class AuthService {
     private UserAccountMapper userAccountMapper;
 
     /**
-     * 登录：校验账密，通过后执行 sa-token 登录并返回 Token。
+     * 登录：校验账密，通过后执行 sa-token 登录并返回 Token
      *
      * @param username 登录账号
      * @param password 登录密码
@@ -32,13 +34,41 @@ public class AuthService {
      */
     public String login(String username, String password) {
         UserAccount account = userAccountMapper.findByUsername(username);
-        if (account == null || !account.getPassword().equals(password)) {
+        // BCrypt 校验会读取哈希中保存的盐和成本参数。
+        if (account == null || password == null || !BCrypt.checkpw(password, account.getPassword())) {
             throw new IllegalArgumentException("用户名或密码错误");
         }
         // 以 userId 作为 loginId 写入 sa-token 会话（存储于 Redis）
         StpUtil.login(account.getUserId());
         logger.info("[AUTH] 用户登录成功: username={}, userId={}", username, account.getUserId());
         return StpUtil.getTokenValue();
+    }
+
+    /**
+     * 创建登录账号。userId 由调用方指定，供登录后关联用户档案
+     *
+     * @param userId
+     * @param username
+     * @param password
+     * @param realName
+     * @param role
+     */
+    public void register(String userId, String username, String password, String realName, String role) {
+        UserRole accountRole;
+        try {
+            accountRole = role == null || role.isBlank() ? UserRole.USER : UserRole.fromName(role.strip());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("role 只能是 USER 或 ADMIN");
+        }
+
+        // 直接插入，由数据库唯一约束处理 userId 或用户名重复的并发请求。
+        userAccountMapper.insert(UserAccount.builder()
+                .userId(userId)
+                .username(username)
+                .password(BCrypt.hashpw(password))
+                .realName(realName)
+                .role(accountRole)
+                .build());
     }
 
     /**

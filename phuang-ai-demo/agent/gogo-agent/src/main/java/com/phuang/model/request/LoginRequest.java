@@ -1,4 +1,4 @@
-package com.phuang.bussiness.auth.request;
+package com.phuang.model.request;
 
 import lombok.Data;
 

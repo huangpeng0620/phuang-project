@@ -32,23 +32,23 @@ public class UserAccount {
     /** 登录账号 */
     private String username;
 
-    /** 登录密码（生产环境应使用 BCrypt 存储） */
+    /**
+     * 登录密码
+     * Bcrypt 加密
+     */
     private String password;
 
     /** 用户真实姓名 */
     private String realName;
 
     /** 角色：USER 普通用户 / ADMIN 管理员 */
-    private String role;
+    private UserRole role;
 
     private LocalDateTime createdTime;
 
-    /**
-     * 是否为管理员（role = ADMIN，忽略大小写）
-     * @return
-     */
+    /** 是否为管理员。 */
     public boolean isAdmin() {
-        return "ADMIN".equalsIgnoreCase(role);
+        return role == UserRole.ADMIN;
     }
 
 }
