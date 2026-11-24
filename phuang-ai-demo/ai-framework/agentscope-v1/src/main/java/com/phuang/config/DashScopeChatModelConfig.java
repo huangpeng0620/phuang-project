@@ -22,6 +22,8 @@ public class DashScopeChatModelConfig {
 
     private String deepseekModelName;
 
+    private String memoryLibraryId;
+
     @Bean
     @ConditionalOnProperty(prefix = "dash-scope.chat-model", name = "qianwen-model-name")
     public DashScopeChatModel qianwenChatModel() {

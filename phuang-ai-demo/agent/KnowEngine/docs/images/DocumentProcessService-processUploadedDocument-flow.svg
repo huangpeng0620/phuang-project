@@ -1,0 +1,325 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2600" height="2100" viewBox="0 0 2600 2100">
+  <defs>
+    <linearGradient id="header" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#10265a"/>
+      <stop offset="0.55" stop-color="#174b9f"/>
+      <stop offset="1" stop-color="#2e69da"/>
+    </linearGradient>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f9fcff"/>
+      <stop offset="1" stop-color="#eef5ff"/>
+    </linearGradient>
+    <linearGradient id="blueBand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#dcecff"/>
+      <stop offset="1" stop-color="#cfe3ff"/>
+    </linearGradient>
+    <linearGradient id="pdfBand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e9e2ff"/>
+      <stop offset="1" stop-color="#dcd5ff"/>
+    </linearGradient>
+    <linearGradient id="mdBand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#d8f7ef"/>
+      <stop offset="1" stop-color="#c9f1e5"/>
+    </linearGradient>
+    <linearGradient id="excelBand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff0ce"/>
+      <stop offset="1" stop-color="#ffe4ad"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="7" stdDeviation="10" flood-color="#294b83" flood-opacity="0.13"/>
+    </filter>
+    <filter id="smallShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#294b83" flood-opacity="0.10"/>
+    </filter>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#2f78ed"/>
+    </marker>
+    <marker id="arrowPdf" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#7550e8"/>
+    </marker>
+    <marker id="arrowMd" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#0ca778"/>
+    </marker>
+    <marker id="arrowExcel" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#e89b12"/>
+    </marker>
+    <style>
+      .cn { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; }
+      .mono { font-family: Menlo, Consolas, monospace; }
+      .section-title { font-size: 28px; font-weight: 750; }
+      .lane-title { font-size: 29px; font-weight: 800; }
+      .card-title { font-size: 23px; font-weight: 750; fill: #10234f; }
+      .body { font-size: 18px; fill: #52627f; }
+      .small { font-size: 15px; fill: #667792; }
+      .code { font-size: 16px; fill: #244b9b; }
+      .badge { font-size: 18px; font-weight: 750; fill: #ffffff; text-anchor: middle; dominant-baseline: middle; }
+      .arrow-blue { stroke: #2f78ed; stroke-width: 4; fill: none; marker-end: url(#arrowBlue); }
+      .arrow-pdf { stroke: #7550e8; stroke-width: 4; fill: none; marker-end: url(#arrowPdf); }
+      .arrow-md { stroke: #0ca778; stroke-width: 4; fill: none; marker-end: url(#arrowMd); }
+      .arrow-excel { stroke: #e89b12; stroke-width: 4; fill: none; marker-end: url(#arrowExcel); }
+    </style>
+  </defs>
+
+  <rect width="2600" height="2100" fill="url(#page)"/>
+
+  <!-- Header -->
+  <rect x="0" y="0" width="2600" height="180" fill="url(#header)"/>
+  <circle cx="2450" cy="-20" r="255" fill="#5683e3" opacity="0.19"/>
+  <circle cx="2560" cy="85" r="205" fill="#7596ec" opacity="0.15"/>
+  <circle cx="2280" cy="20" r="165" fill="#3c6fd0" opacity="0.17"/>
+  <text x="70" y="75" class="cn" font-size="45" font-weight="800" fill="#ffffff">DocumentProcessServiceImpl#processUploadedDocument 核心流程</text>
+  <text x="72" y="125" class="cn" font-size="24" fill="#dce9ff">公共路由入口 · PDF 转 Markdown · Markdown 图片语义增强 · Excel 数据入库与检索切分</text>
+  <g class="cn" font-size="17" fill="#ecf3ff">
+    <rect x="2060" y="48" width="155" height="40" rx="20" fill="#ffffff" opacity="0.13"/>
+    <text x="2137" y="74" text-anchor="middle">MINIO 回源</text>
+    <rect x="2230" y="48" width="145" height="40" rx="20" fill="#ffffff" opacity="0.13"/>
+    <text x="2302" y="74" text-anchor="middle">格式路由</text>
+    <rect x="2390" y="48" width="150" height="40" rx="20" fill="#ffffff" opacity="0.13"/>
+    <text x="2465" y="74" text-anchor="middle">统一回写</text>
+  </g>
+
+  <!-- Common entry -->
+  <rect x="45" y="215" width="2510" height="365" rx="28" fill="#f7fbff" stroke="#8abaff" stroke-width="2"/>
+  <rect x="68" y="235" width="2464" height="58" rx="16" fill="url(#blueBand)"/>
+  <circle cx="100" cy="264" r="9" fill="#2875e9"/>
+  <text x="124" y="274" class="cn section-title" fill="#0754c8">公共入口：只在 convertedDocUrl 为空时执行</text>
+  <text x="860" y="273" class="cn" font-size="18" fill="#60789e">completeUploadedDocumentProcessing → processUploadedDocument → processFile</text>
+
+  <!-- Common cards -->
+  <g filter="url(#shadow)"><rect x="70" y="325" width="360" height="190" rx="20" fill="#fff" stroke="#93c0ff" stroke-width="2"/></g>
+  <circle cx="108" cy="364" r="24" fill="#2473ea"/><text x="108" y="365" class="cn badge">1</text>
+  <text x="145" y="373" class="cn card-title">校验原始文件 URL</text>
+  <rect x="92" y="398" width="315" height="37" rx="9" fill="#edf5ff"/>
+  <text x="108" y="423" class="mono code">Assert.hasText(docUrl)</text>
+  <text x="94" y="463" class="cn body">原始文件必须已经上传到 MinIO</text>
+  <text x="94" y="493" class="cn small">否则直接中止异步处理</text>
+
+  <g filter="url(#shadow)"><rect x="490" y="325" width="360" height="190" rx="20" fill="#fff" stroke="#93c0ff" stroke-width="2"/></g>
+  <circle cx="528" cy="364" r="24" fill="#2473ea"/><text x="528" y="365" class="cn badge">2</text>
+  <text x="565" y="373" class="cn card-title">绑定当前处理版本</text>
+  <rect x="512" y="398" width="315" height="45" rx="9" fill="#edf5ff"/>
+  <text x="528" y="418" class="mono" font-size="14" fill="#244b9b">document.setCurrentVersionId(</text>
+  <text x="528" y="437" class="mono" font-size="14" fill="#244b9b">  documentVersion.versionId)</text>
+  <text x="514" y="478" class="cn body">仅修改当前内存对象</text>
+  <text x="514" y="505" class="cn small">让处理器知道要推进哪个版本状态</text>
+
+  <g filter="url(#shadow)"><rect x="910" y="325" width="360" height="190" rx="20" fill="#fff" stroke="#93c0ff" stroke-width="2"/></g>
+  <circle cx="948" cy="364" r="24" fill="#2473ea"/><text x="948" y="365" class="cn badge">3</text>
+  <text x="985" y="373" class="cn card-title">解析 MinIO 对象名</text>
+  <rect x="932" y="398" width="315" height="37" rx="9" fill="#edf5ff"/>
+  <text x="947" y="423" class="mono" font-size="15" fill="#244b9b">extractObjectNameFromUrl(docUrl)</text>
+  <text x="934" y="464" class="cn body">从 /{bucket}/ 后截取 objectName</text>
+  <text x="934" y="493" class="cn small">无法解析时通过 Assert 中止</text>
+
+  <g filter="url(#shadow)"><rect x="1330" y="325" width="360" height="190" rx="20" fill="#fff" stroke="#93c0ff" stroke-width="2"/></g>
+  <circle cx="1368" cy="364" r="24" fill="#2473ea"/><text x="1368" y="365" class="cn badge">4</text>
+  <text x="1405" y="373" class="cn card-title">从 MinIO 下载输入流</text>
+  <rect x="1352" y="398" width="315" height="37" rx="9" fill="#edf5ff"/>
+  <text x="1368" y="423" class="mono code">downloadFile(objectName)</text>
+  <text x="1354" y="464" class="cn body">try-with-resources 统一关闭流</text>
+  <text x="1354" y="493" class="cn small" fill="#c56b0c">PDF 路线实际上不会读取该流</text>
+
+  <g filter="url(#shadow)"><rect x="1750" y="325" width="360" height="190" rx="20" fill="#fff" stroke="#93c0ff" stroke-width="2"/></g>
+  <circle cx="1788" cy="364" r="24" fill="#2473ea"/><text x="1788" y="365" class="cn badge">5</text>
+  <text x="1825" y="373" class="cn card-title">识别文件类型</text>
+  <rect x="1772" y="398" width="315" height="37" rx="9" fill="#edf5ff"/>
+  <text x="1788" y="423" class="mono code">FileTypeUtil.getFileType(name)</text>
+  <text x="1774" y="464" class="cn body">PDF / MARKDOWN / EXCEL / CSV</text>
+  <text x="1774" y="493" class="cn small" fill="#c94a43">当前仅根据对象名后缀判断</text>
+
+  <g filter="url(#shadow)"><rect x="2170" y="325" width="360" height="190" rx="20" fill="#fff" stroke="#6e91ee" stroke-width="3"/></g>
+  <circle cx="2208" cy="364" r="24" fill="#2473ea"/><text x="2208" y="365" class="cn badge">6</text>
+  <text x="2245" y="373" class="cn card-title">选择文件处理器</text>
+  <rect x="2192" y="398" width="315" height="52" rx="9" fill="#edf5ff"/>
+  <text x="2207" y="420" class="mono" font-size="14" fill="#244b9b">factory.get(fileType,</text>
+  <text x="2207" y="441" class="mono" font-size="14" fill="#244b9b">  knowledgeBaseType)</text>
+  <text x="2194" y="478" class="cn body">命中 → processDocument()</text>
+  <text x="2194" y="505" class="cn small">未命中 → processFile() 兜底</text>
+
+  <path d="M430 420 H478" class="arrow-blue"/>
+  <path d="M850 420 H898" class="arrow-blue"/>
+  <path d="M1270 420 H1318" class="arrow-blue"/>
+  <path d="M1690 420 H1738" class="arrow-blue"/>
+  <path d="M2110 420 H2158" class="arrow-blue"/>
+
+  <!-- branch bus -->
+  <path d="M2350 515 V610 H440 V650" class="arrow-pdf"/>
+  <path d="M2350 610 H1300 V650" class="arrow-md"/>
+  <path d="M2350 610 H2160 V650" class="arrow-excel"/>
+  <rect x="1120" y="588" width="360" height="34" rx="17" fill="#edf1ff"/>
+  <text x="1300" y="611" class="cn" font-size="16" font-weight="700" fill="#415999" text-anchor="middle">按 FileType + KnowledgeBaseType 分流</text>
+
+  <!-- PDF lane -->
+  <rect x="45" y="650" width="815" height="1045" rx="27" fill="#fbf9ff" stroke="#9b7df3" stroke-width="2"/>
+  <rect x="67" y="670" width="771" height="58" rx="16" fill="url(#pdfBand)"/>
+  <circle cx="100" cy="699" r="10" fill="#7550e8"/>
+  <text x="126" y="709" class="cn lane-title" fill="#5230bf">PDF：MinerU 转 Markdown</text>
+  <text x="732" y="706" class="mono" font-size="15" fill="#655695" text-anchor="end">PDF</text>
+
+  <g filter="url(#smallShadow)"><rect x="70" y="752" width="765" height="130" rx="20" fill="#fff" stroke="#ab92f5" stroke-width="2"/></g>
+  <circle cx="108" cy="790" r="23" fill="#7550e8"/><text x="108" y="791" class="cn badge">P1</text>
+  <text x="148" y="798" class="cn card-title">PdfProcessServiceImpl 命中</text>
+  <text x="94" y="835" class="mono code">supports: fileType == PDF</text>
+  <text x="94" y="863" class="cn body">状态：UPLOADED → CONVERTING</text>
+  <rect x="570" y="816" width="240" height="37" rx="18" fill="#fff1ee" stroke="#f18a80"/>
+  <text x="690" y="841" class="cn" font-size="15" font-weight="700" fill="#c5453e" text-anchor="middle">未限制 knowledgeBaseType</text>
+
+  <g filter="url(#smallShadow)"><rect x="70" y="902" width="765" height="195" rx="20" fill="#fff" stroke="#ab92f5" stroke-width="2"/></g>
+  <circle cx="108" cy="940" r="23" fill="#7550e8"/><text x="108" y="941" class="cn badge">P2</text>
+  <text x="148" y="948" class="cn card-title">创建任务，并仅查询 MinerU 结果</text>
+  <text x="94" y="985" class="mono code">createParseTask(fileMinioUrl) → taskId；MinerU 主动下载 PDF</text>
+  <text x="94" y="1015" class="mono small">waitForParseResult(): 先等待 5 秒；每 3 秒 queryParseResult(taskId)</text>
+  <text x="94" y="1045" class="cn small">queryParseResult 只返回状态与 full_zip_url，不下载、不解压、不上传</text>
+  <text x="94" y="1075" class="mono small">pending / running / converting → 继续 ｜ failed → 异常 ｜ done → full_zip_url</text>
+
+  <g filter="url(#smallShadow)"><rect x="70" y="1117" width="765" height="270" rx="20" fill="#fff" stroke="#ab92f5" stroke-width="2"/></g>
+  <circle cx="108" cy="1155" r="23" fill="#7550e8"/><text x="108" y="1156" class="cn badge">P3</text>
+  <text x="148" y="1163" class="cn card-title">processParseResult：处理 MinerU 结果 ZIP</text>
+  <text x="94" y="1201" class="cn small">任务 done 后，由 MinerUProcessBaseServiceImpl 显式调用 processParseResult(taskId, fullZipUrl)</text>
+  <text x="94" y="1231" class="cn body">① ZIP 流式写入临时文件；解压时校验路径，拦截 ZIP 路径穿越</text>
+  <text x="94" y="1261" class="cn body">② 精确查找 full.md 与同级 images 目录，递归收集图片</text>
+  <text x="94" y="1291" class="cn body">③ 图片上传至 converted/pdf/{taskId}/images/...</text>
+  <text x="94" y="1321" class="cn body">④ qwen3-vl-plus 生成图片描述，替换 Markdown 图片 URL / alt</text>
+  <text x="94" y="1351" class="cn small">⑤ 上传 converted/pdf/{taskId}/full.md；虚拟线程清理临时文件</text>
+
+  <g filter="url(#smallShadow)"><rect x="70" y="1407" width="765" height="170" rx="20" fill="#f7f3ff" stroke="#8d6dee" stroke-width="2"/></g>
+  <circle cx="108" cy="1445" r="23" fill="#7550e8"/><text x="108" y="1446" class="cn badge">P4</text>
+  <text x="148" y="1453" class="cn card-title">输出最终 Markdown</text>
+  <text x="94" y="1492" class="mono code">converted/pdf/{taskId}/full.md</text>
+  <text x="94" y="1523" class="cn body">状态：CONVERTING → CONVERTED</text>
+  <text x="94" y="1553" class="cn small">返回 markdownMinioUrl，供后续 split() 下载与切分</text>
+
+  <rect x="70" y="1598" width="765" height="72" rx="18" fill="#fff3ef" stroke="#ef8177" stroke-width="2"/>
+  <text x="94" y="1627" class="cn" font-size="17" font-weight="700" fill="#c8463e">注意：轮询没有总超时；单张图片描述失败会使 PDF 整体转换失败</text>
+  <text x="94" y="1655" class="cn small" fill="#b7544e">公共入口已经下载的 PDF InputStream 在该路线中没有被使用</text>
+
+  <!-- Markdown lane -->
+  <rect x="892" y="650" width="815" height="1045" rx="27" fill="#f7fcfa" stroke="#46cba1" stroke-width="2"/>
+  <rect x="914" y="670" width="771" height="58" rx="16" fill="url(#mdBand)"/>
+  <circle cx="947" cy="699" r="10" fill="#0ca778"/>
+  <text x="973" y="709" class="cn lane-title" fill="#08795a">Markdown：图片语义增强</text>
+  <text x="1578" y="706" class="mono" font-size="15" fill="#467b69" text-anchor="end">MARKDOWN</text>
+
+  <g filter="url(#smallShadow)"><rect x="917" y="752" width="765" height="155" rx="20" fill="#fff" stroke="#62d4b0" stroke-width="2"/></g>
+  <circle cx="955" cy="790" r="23" fill="#0ca778"/><text x="955" y="791" class="cn badge">M1</text>
+  <text x="995" y="798" class="cn card-title">MarkdownProcessServiceImpl 命中</text>
+  <text x="941" y="835" class="mono code">supports: fileType == MARKDOWN</text>
+  <text x="941" y="865" class="cn body">状态：UPLOADED → CONVERTING</text>
+  <text x="941" y="894" class="cn small">未限制 knowledgeBaseType；直接使用 MinIO 输入流</text>
+
+  <g filter="url(#smallShadow)"><rect x="917" y="927" width="765" height="205" rx="20" fill="#fff" stroke="#62d4b0" stroke-width="2"/></g>
+  <circle cx="955" cy="965" r="23" fill="#0ca778"/><text x="955" y="966" class="cn badge">M2</text>
+  <text x="995" y="973" class="cn card-title">读取 Markdown 并定位图片</text>
+  <text x="941" y="1010" class="mono code">InputStream → UTF-8 String（8 KB 缓冲）</text>
+  <text x="941" y="1042" class="cn body">正则匹配：![alt](url)</text>
+  <text x="941" y="1074" class="cn body">只增强图片标签，不解析标题结构，也不执行切分</text>
+  <text x="941" y="1104" class="cn small">Markdown 内容最终全量保存在内存字符串中</text>
+
+  <g filter="url(#smallShadow)"><rect x="917" y="1152" width="765" height="230" rx="20" fill="#fff" stroke="#62d4b0" stroke-width="2"/></g>
+  <circle cx="955" cy="1190" r="23" fill="#0ca778"/><text x="955" y="1191" class="cn badge">M3</text>
+  <text x="995" y="1198" class="cn card-title">逐图调用视觉模型</text>
+  <text x="941" y="1236" class="cn body">① 将图片 URL 作为 ImageContent 发给 qwen3-vl-plus</text>
+  <text x="941" y="1268" class="cn body">② 生成场景、对象、布局、颜色和文字描述</text>
+  <text x="941" y="1300" class="cn body">③ 清理换行后替换原 alt 文本，图片 URL 保持不变</text>
+  <text x="941" y="1332" class="cn body">④ 单张图片失败或描述为空：保留原 alt，继续下一张</text>
+  <text x="941" y="1360" class="mono small">![origin](url) → ![视觉模型描述](url)</text>
+
+  <g filter="url(#smallShadow)"><rect x="917" y="1402" width="765" height="175" rx="20" fill="#effbf7" stroke="#38bd91" stroke-width="2"/></g>
+  <circle cx="955" cy="1440" r="23" fill="#0ca778"/><text x="955" y="1441" class="cn badge">M4</text>
+  <text x="995" y="1448" class="cn card-title">上传增强后的 Markdown</text>
+  <text x="941" y="1487" class="mono code">converted/markdown/{docTitle去后缀}.md</text>
+  <text x="941" y="1518" class="cn body">状态：CONVERTING → CONVERTED</text>
+  <text x="941" y="1548" class="cn small">返回新的 convertedUrl；后续 split() 再执行文本切分</text>
+
+  <rect x="917" y="1598" width="765" height="72" rx="18" fill="#fff3ef" stroke="#ef8177" stroke-width="2"/>
+  <text x="941" y="1627" class="cn" font-size="17" font-weight="700" fill="#c8463e">注意：输出对象名没有 docId/versionId，相同标题或新版本可能覆盖</text>
+  <text x="941" y="1655" class="cn small" fill="#b7544e">大 Markdown 全量读入内存；图片按顺序串行调用视觉模型</text>
+
+  <!-- Excel lane -->
+  <rect x="1739" y="650" width="816" height="1045" rx="27" fill="#fffcf6" stroke="#efb747" stroke-width="2"/>
+  <rect x="1761" y="670" width="772" height="58" rx="16" fill="url(#excelBand)"/>
+  <circle cx="1794" cy="699" r="10" fill="#e89b12"/>
+  <text x="1820" y="709" class="cn lane-title" fill="#a85c04">Excel / CSV：按知识库类型分流</text>
+  <text x="2470" y="706" class="mono" font-size="15" fill="#8d7041" text-anchor="end">EXCEL · CSV</text>
+
+  <g filter="url(#smallShadow)"><rect x="1764" y="752" width="766" height="125" rx="20" fill="#fff" stroke="#efbd58" stroke-width="2"/></g>
+  <circle cx="1802" cy="790" r="23" fill="#e89b12"/><text x="1802" y="791" class="cn badge">E0</text>
+  <text x="1842" y="798" class="cn card-title">知识库类型决定处理时点</text>
+  <text x="1788" y="836" class="cn body">DATA_QUERY → ExcelProcessServiceImpl 立即导入数据库</text>
+  <text x="1788" y="864" class="cn body">DOCUMENT_SEARCH → 当前阶段不解析，等待 split()</text>
+
+  <g filter="url(#smallShadow)"><rect x="1764" y="897" width="766" height="205" rx="20" fill="#fff" stroke="#efbd58" stroke-width="2"/></g>
+  <rect x="1788" y="918" width="135" height="33" rx="16" fill="#e89b12"/>
+  <text x="1855" y="941" class="cn" font-size="16" font-weight="700" fill="#fff" text-anchor="middle">DATA_QUERY</text>
+  <text x="1940" y="944" class="cn card-title">EasyExcel 解析数据</text>
+  <text x="1788" y="982" class="mono code">headRowNumber(0) → 第一行也进入 Listener</text>
+  <text x="1788" y="1013" class="cn body">excelData[0] 是表头；其余为数据行，至少要求两行</text>
+  <text x="1788" y="1044" class="cn body">表头规范化、重名加后缀；所有字段固定 VARCHAR(500)</text>
+  <text x="1788" y="1075" class="cn small">监听读取后仍汇总为 List&lt;List&lt;String&gt;&gt;，整表驻留内存</text>
+
+  <g filter="url(#smallShadow)"><rect x="1764" y="1122" width="766" height="245" rx="20" fill="#fff" stroke="#efbd58" stroke-width="2"/></g>
+  <circle cx="1802" cy="1160" r="23" fill="#e89b12"/><text x="1802" y="1161" class="cn badge">E2</text>
+  <text x="1842" y="1168" class="cn card-title">映射 MySQL 物理表并替换数据</text>
+  <text x="1788" y="1206" class="mono code">custom_data_query_{规范化 tableName}</text>
+  <text x="1788" y="1240" class="cn body">表不存在：CREATE TABLE → 每 500 行 INSERT → 新增 table_meta</text>
+  <text x="1788" y="1273" class="cn body">表已存在：校验列数/列名/类型/顺序完全一致</text>
+  <text x="1788" y="1306" class="cn body">结构一致：DELETE 全表 → 分批 INSERT → 更新 table_meta.versionId</text>
+  <text x="1788" y="1338" class="cn small">返回原始 fileMinioUrl，不产生新的转换文件</text>
+
+  <g filter="url(#smallShadow)"><rect x="1764" y="1387" width="766" height="115" rx="20" fill="#fff3ef" stroke="#ef8177" stroke-width="2"/></g>
+  <circle cx="1802" cy="1425" r="23" fill="#ef5a52"/><text x="1802" y="1426" class="cn badge">!</text>
+  <text x="1842" y="1433" class="cn card-title">当前实现的状态缺口</text>
+  <text x="1788" y="1471" class="cn" font-size="17" font-weight="700" fill="#c8463e">处理器未推进 STORED，首次完成后版本可能仍为 UPLOADED</text>
+  <text x="1788" y="1494" class="cn small" fill="#b7544e">后续补偿任务重入幂等分支时才可能修正为 STORED</text>
+
+  <g filter="url(#smallShadow)"><rect x="1764" y="1522" width="766" height="148" rx="20" fill="#fffaf0" stroke="#efbd58" stroke-width="2"/></g>
+  <rect x="1788" y="1542" width="180" height="33" rx="16" fill="#d88308"/>
+  <text x="1878" y="1565" class="cn" font-size="16" font-weight="700" fill="#fff" text-anchor="middle">DOCUMENT_SEARCH</text>
+  <text x="1984" y="1568" class="cn card-title">延迟到 split() 解析</text>
+  <text x="1788" y="1605" class="cn body">当前兜底：状态 → CONVERTED，convertedUrl = 原始 Excel URL</text>
+  <text x="1788" y="1635" class="cn small">后续 readAllBytes → ExcelSplitter → 每行转“表头：值”TextSegment</text>
+
+  <!-- Convergence arrows -->
+  <path d="M452 1695 V1740 H635" class="arrow-pdf"/>
+  <path d="M1300 1695 V1740" class="arrow-md"/>
+  <path d="M2147 1695 V1740 H1965" class="arrow-excel"/>
+
+  <!-- Unified writeback -->
+  <rect x="45" y="1740" width="2510" height="290" rx="28" fill="#f5fbff" stroke="#61a6ed" stroke-width="2"/>
+  <rect x="68" y="1760" width="2464" height="55" rx="16" fill="url(#blueBand)"/>
+  <circle cx="100" cy="1787" r="9" fill="#2875e9"/>
+  <text x="124" y="1797" class="cn section-title" fill="#0754c8">三路汇聚：返回 convertedDocUrl 并执行统一短事务回写</text>
+
+  <g filter="url(#smallShadow)"><rect x="75" y="1840" width="525" height="145" rx="20" fill="#fff" stroke="#89baff" stroke-width="2"/></g>
+  <circle cx="113" cy="1878" r="23" fill="#2473ea"/><text x="113" y="1879" class="cn badge">O1</text>
+  <text x="153" y="1886" class="cn card-title">处理器返回 URL</text>
+  <text x="99" y="1924" class="cn body">PDF / Markdown：新 Markdown URL</text>
+  <text x="99" y="1955" class="cn body">Excel：原始文件 URL</text>
+  <text x="99" y="1980" class="mono small">Assert.hasText(convertedDocUrl)</text>
+
+  <g filter="url(#smallShadow)"><rect x="640" y="1840" width="690" height="145" rx="20" fill="#fff" stroke="#89baff" stroke-width="2"/></g>
+  <circle cx="678" cy="1878" r="23" fill="#2473ea"/><text x="678" y="1879" class="cn badge">O2</text>
+  <text x="718" y="1886" class="cn card-title">completeUploadProcessing 短事务</text>
+  <text x="664" y="1924" class="mono code">version.convertedDocUrl = convertedDocUrl</text>
+  <text x="664" y="1954" class="mono code">document.currentVersionId = versionId</text>
+  <text x="664" y="1980" class="mono small">document.status = documentVersion.status</text>
+
+  <g filter="url(#smallShadow)"><rect x="1370" y="1840" width="1135" height="145" rx="20" fill="#effaf7" stroke="#43c69c" stroke-width="2"/></g>
+  <circle cx="1408" cy="1878" r="23" fill="#0ca778"/><text x="1408" y="1879" class="cn badge">O3</text>
+  <text x="1448" y="1886" class="cn card-title">后续处理边界</text>
+  <text x="1394" y="1924" class="cn body">PDF / Markdown / Excel(DOCUMENT_SEARCH)：等待手动 split → CHUNKED → 异步向量化</text>
+  <text x="1394" y="1955" class="cn body">Excel(DATA_QUERY)：数据已经进入 MySQL，理论目标状态为 STORED</text>
+  <text x="1394" y="1981" class="cn small">处理异常由监听器记录，上传补偿任务会再次调用同一幂等入口</text>
+
+  <path d="M600 1912 H628" class="arrow-blue"/>
+  <path d="M1330 1912 H1358" class="arrow-blue"/>
+
+  <!-- Footer -->
+  <line x1="70" y1="2053" x2="2530" y2="2053" stroke="#cbd8e8" stroke-width="2"/>
+  <circle cx="92" cy="2082" r="8" fill="#2f78ed"/><text x="112" y="2089" class="cn" font-size="16" fill="#60708b">蓝色：公共入口与统一回写</text>
+  <circle cx="425" cy="2082" r="8" fill="#7550e8"/><text x="445" y="2089" class="cn" font-size="16" fill="#60708b">紫色：PDF / MinerU</text>
+  <circle cx="700" cy="2082" r="8" fill="#0ca778"/><text x="720" y="2089" class="cn" font-size="16" fill="#60708b">绿色：Markdown 增强</text>
+  <circle cx="1015" cy="2082" r="8" fill="#e89b12"/><text x="1035" y="2089" class="cn" font-size="16" fill="#60708b">橙色：Excel / CSV</text>
+  <circle cx="1325" cy="2082" r="8" fill="#ef5a52"/><text x="1345" y="2089" class="cn" font-size="16" fill="#60708b">红色：实现风险与状态缺口</text>
+  <text x="2528" y="2089" class="mono" font-size="15" fill="#60708b" text-anchor="end">DocumentProcessServiceImpl#processUploadedDocument</text>
+</svg>

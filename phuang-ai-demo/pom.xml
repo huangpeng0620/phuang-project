@@ -20,6 +20,8 @@
         <module>agent/KnowEngine</module>
         <module>ai-framework/spring-ai-agent</module>
         <module>ai-framework/agentscope-v1</module>
+        <module>ai-framework/agentscope-v2</module>
+        <module>agent/gogo-agent</module>
     </modules>
 
     <properties>
@@ -32,7 +34,10 @@
         <spring-ai.version>1.1.0</spring-ai.version>
         <spring-ai-alibaba.version>1.1.0.0</spring-ai-alibaba.version>
         <spring-ai-alibaba-extensions.version>1.1.2.1</spring-ai-alibaba-extensions.version>
+<!--
         <dashscope.api.key>sk-d1e56d0012004a2cbdf6b3ddb2a8cc3d</dashscope.api.key>
+-->
+        <dashscope.api.key>sk-ws-H.YELHEHX.CGOZ.MEQCIGCxy3OiqyHJjPoYM9NgKYkWKzqGhYvZn1DqFavd_8R3AiBqSiHu-0it4MbbeiP-6iBj4IM_RGZlzfcPGnQl4YfzDg</dashscope.api.key>
     </properties>
 
     <!--父工程统一定义常用依赖版本控制-->

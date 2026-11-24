@@ -11,6 +11,7 @@ dash-scope.chat-model.api-key: @dashscope.api.key@
 dash-scope.chat-model.url: https://llm-yjcrddyghy0vh1ul.cn-beijing.maas.aliyuncs.com
 dash-scope.chat-model.qianwen-model-name: qwen-plus
 dash-scope.chat-model.deepseek-model-name: deepseek-r1
+dash-scope.chat-model.memory-library-id: a4544f4d02794ae0a301848e6f4f89cd
 
 # mysql连接信息
 spring.datasource.url: jdbc:mysql://8.136.10.85:3306/agentscope?useUnicode=true&characterEncoding=UTF-8

@@ -1,0 +1,394 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="1900" viewBox="0 0 2400 1900">
+  <defs>
+    <linearGradient id="header" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#10275d"/>
+      <stop offset="0.54" stop-color="#174a9e"/>
+      <stop offset="1" stop-color="#2c67d8"/>
+    </linearGradient>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8fbff"/>
+      <stop offset="1" stop-color="#eef5ff"/>
+    </linearGradient>
+    <linearGradient id="blueBand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#dcecff"/>
+      <stop offset="1" stop-color="#cfe3ff"/>
+    </linearGradient>
+    <linearGradient id="purpleBand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e8e0ff"/>
+      <stop offset="1" stop-color="#dcd7ff"/>
+    </linearGradient>
+    <linearGradient id="greenBand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#d9f8eb"/>
+      <stop offset="1" stop-color="#c9f2e1"/>
+    </linearGradient>
+    <linearGradient id="orangeBand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff0cf"/>
+      <stop offset="1" stop-color="#ffe5b2"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#294b83" flood-opacity="0.13"/>
+    </filter>
+    <filter id="smallShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#294b83" flood-opacity="0.11"/>
+    </filter>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#2f78ed"/>
+    </marker>
+    <marker id="arrowPurple" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#7549e8"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#0fa978"/>
+    </marker>
+    <marker id="arrowRed" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#ef5a52"/>
+    </marker>
+    <style>
+      .cn { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; }
+      .mono { font-family: Menlo, Consolas, monospace; }
+      .section-title { font-size: 28px; font-weight: 700; }
+      .card-title { font-size: 25px; font-weight: 700; fill: #10234f; }
+      .body { font-size: 19px; fill: #51627f; }
+      .small { font-size: 16px; fill: #657491; }
+      .code { font-size: 17px; fill: #244b9b; }
+      .badge-text { font-size: 20px; font-weight: 700; fill: #ffffff; text-anchor: middle; dominant-baseline: middle; }
+      .arrow-blue { stroke: #2f78ed; stroke-width: 4; fill: none; marker-end: url(#arrowBlue); }
+      .arrow-purple { stroke: #7549e8; stroke-width: 4; fill: none; marker-end: url(#arrowPurple); }
+      .arrow-green { stroke: #0fa978; stroke-width: 4; fill: none; marker-end: url(#arrowGreen); }
+      .arrow-red { stroke: #ef5a52; stroke-width: 4; fill: none; marker-end: url(#arrowRed); }
+    </style>
+  </defs>
+
+  <rect width="2400" height="1900" fill="url(#page)"/>
+
+  <!-- Header -->
+  <rect x="0" y="0" width="2400" height="180" fill="url(#header)"/>
+  <circle cx="2260" cy="-10" r="240" fill="#4c7fe4" opacity="0.22"/>
+  <circle cx="2360" cy="80" r="190" fill="#6d91ec" opacity="0.16"/>
+  <circle cx="2100" cy="30" r="155" fill="#3b6fd2" opacity="0.18"/>
+  <text x="72" y="76" class="cn" font-size="46" font-weight="800" fill="#ffffff">DocumentProcessService#upload 文档上传全链路</text>
+  <text x="74" y="126" class="cn" font-size="24" fill="#dce9ff">同步查重与落库 · 事务提交后触发异步转换 · 状态回写与失败补偿</text>
+  <g class="cn" font-size="18" fill="#ecf3ff">
+    <rect x="1725" y="47" width="150" height="42" rx="21" fill="#ffffff" opacity="0.13"/>
+    <text x="1800" y="75" text-anchor="middle">@HLock</text>
+    <rect x="1890" y="47" width="190" height="42" rx="21" fill="#ffffff" opacity="0.13"/>
+    <text x="1985" y="75" text-anchor="middle">@Transactional</text>
+    <rect x="2095" y="47" width="220" height="42" rx="21" fill="#ffffff" opacity="0.13"/>
+    <text x="2205" y="75" text-anchor="middle">AFTER_COMMIT · @Async</text>
+  </g>
+
+  <!-- Section 1 -->
+  <rect x="48" y="218" width="2304" height="585" rx="28" fill="#f7fbff" stroke="#85b9ff" stroke-width="2"/>
+  <rect x="70" y="238" width="2260" height="58" rx="16" fill="url(#blueBand)"/>
+  <circle cx="103" cy="267" r="9" fill="#2773e8"/>
+  <text x="127" y="277" class="cn section-title" fill="#0754c8">同步上传主链路</text>
+  <text x="380" y="276" class="cn" font-size="18" fill="#58729b">HTTP 请求线程 ｜ 分布式锁：document_upload:{uploadUser} ｜ 数据库事务</text>
+
+  <!-- Sync card 1 -->
+  <g filter="url(#shadow)">
+    <rect x="70" y="326" width="405" height="190" rx="22" fill="#ffffff" stroke="#93c0ff" stroke-width="2"/>
+  </g>
+  <circle cx="110" cy="365" r="25" fill="#2473ea"/>
+  <text x="110" y="366" class="cn badge-text">1</text>
+  <text x="148" y="374" class="cn card-title">接收上传请求</text>
+  <rect x="92" y="396" width="340" height="33" rx="9" fill="#edf5ff"/>
+  <text x="108" y="419" class="mono code">POST /api/document/upload</text>
+  <text x="94" y="452" class="cn" font-size="18" fill="#51627f">file · title · version · description</text>
+  <text x="94" y="479" class="cn" font-size="18" fill="#51627f">knowledgeBaseType · tableName</text>
+  <text x="94" y="505" class="mono small">accessibleBy · uploadUser=currentUser.name</text>
+
+  <!-- Sync card 2 -->
+  <g filter="url(#shadow)">
+    <rect x="520" y="326" width="405" height="190" rx="22" fill="#ffffff" stroke="#93c0ff" stroke-width="2"/>
+  </g>
+  <circle cx="560" cy="365" r="25" fill="#2473ea"/>
+  <text x="560" y="366" class="cn badge-text">2</text>
+  <text x="598" y="374" class="cn card-title">进入 upload()</text>
+  <rect x="542" y="400" width="360" height="39" rx="10" fill="#edf5ff"/>
+  <text x="558" y="426" class="mono code">@HLock(key = uploadUser)</text>
+  <rect x="542" y="448" width="360" height="39" rx="10" fill="#edf5ff"/>
+  <text x="558" y="474" class="mono" font-size="15" fill="#244b9b">@Transactional(rollbackFor=Exception)</text>
+  <text x="544" y="505" class="cn small">同一上传用户的并发请求受锁控制</text>
+
+  <!-- Sync card 3 -->
+  <g filter="url(#shadow)">
+    <rect x="970" y="326" width="405" height="190" rx="22" fill="#ffffff" stroke="#93c0ff" stroke-width="2"/>
+  </g>
+  <circle cx="1010" cy="365" r="25" fill="#2473ea"/>
+  <text x="1010" y="366" class="cn badge-text">3</text>
+  <text x="1048" y="374" class="cn card-title">计算内容指纹</text>
+  <rect x="992" y="402" width="360" height="43" rx="10" fill="#edf5ff"/>
+  <text x="1008" y="430" class="mono code">calculateContentHash(file)</text>
+  <text x="994" y="473" class="cn body">SHA-256 · 8 KB 缓冲区 · 流式读取</text>
+  <text x="994" y="502" class="cn small">用于跨文档、跨版本内容去重</text>
+
+  <!-- Decision 4 -->
+  <polygon points="1650,316 1830,421 1650,526 1470,421" fill="#f8f4ff" stroke="#7d55ed" stroke-width="3" filter="url(#smallShadow)"/>
+  <circle cx="1564" cy="375" r="25" fill="#7549e8"/>
+  <text x="1564" y="376" class="cn badge-text">4</text>
+  <text x="1650" y="392" class="cn" font-size="25" font-weight="700" fill="#33206f" text-anchor="middle">内容是否重复？</text>
+  <text x="1650" y="428" class="mono" font-size="17" fill="#5b45a4" text-anchor="middle">existsByContentHash(hash)</text>
+  <text x="1650" y="463" class="cn small" text-anchor="middle">查询 knowledge_document_version</text>
+
+  <!-- Duplicate branch -->
+  <g filter="url(#smallShadow)">
+    <rect x="1930" y="342" width="365" height="150" rx="20" fill="#fff5f4" stroke="#ff746c" stroke-width="2"/>
+  </g>
+  <circle cx="1970" cy="382" r="22" fill="#ef5a52"/>
+  <text x="1970" y="383" class="cn badge-text">!</text>
+  <text x="2005" y="389" class="cn" font-size="23" font-weight="700" fill="#c6302a">重复：终止上传</text>
+  <text x="1954" y="430" class="mono" font-size="17" fill="#c6302a">throw BusinessException</text>
+  <text x="1954" y="462" class="cn small" fill="#b64c47">事务回滚，不发布异步事件</text>
+
+  <!-- Sync row 2 cards -->
+  <g filter="url(#shadow)">
+    <rect x="1480" y="575" width="420" height="180" rx="22" fill="#ffffff" stroke="#93c0ff" stroke-width="2"/>
+  </g>
+  <circle cx="1520" cy="614" r="25" fill="#2473ea"/>
+  <text x="1520" y="615" class="cn badge-text">5</text>
+  <text x="1558" y="623" class="cn card-title">生成对象名并上传 MinIO</text>
+  <text x="1504" y="661" class="mono code">generateObjectName(originalFilename)</text>
+  <text x="1504" y="690" class="mono small">documents/{safeName}-{UUID}.{ext}</text>
+  <rect x="1502" y="704" width="365" height="35" rx="9" fill="#edf5ff"/>
+  <text x="1518" y="728" class="mono code">uploadFile(...) → docUrl</text>
+
+  <g filter="url(#shadow)">
+    <rect x="1010" y="575" width="420" height="180" rx="22" fill="#ffffff" stroke="#93c0ff" stroke-width="2"/>
+  </g>
+  <circle cx="1050" cy="614" r="25" fill="#2473ea"/>
+  <text x="1050" y="615" class="cn badge-text">6</text>
+  <text x="1088" y="623" class="cn card-title">保存文档主记录</text>
+  <rect x="1032" y="648" width="360" height="36" rx="9" fill="#edf5ff"/>
+  <text x="1048" y="673" class="mono code">knowledge_document · status=UPLOADED</text>
+  <text x="1034" y="708" class="cn body">标题 · 描述 · 权限 · 知识库类型</text>
+  <text x="1034" y="737" class="mono small">save(document) → docId</text>
+
+  <g filter="url(#shadow)">
+    <rect x="540" y="575" width="420" height="180" rx="22" fill="#ffffff" stroke="#93c0ff" stroke-width="2"/>
+  </g>
+  <circle cx="580" cy="614" r="25" fill="#2473ea"/>
+  <text x="580" y="615" class="cn badge-text">7</text>
+  <text x="618" y="623" class="cn card-title">保存版本记录</text>
+  <rect x="562" y="648" width="360" height="36" rx="9" fill="#edf5ff"/>
+  <text x="578" y="673" class="mono code">document_version · status=UPLOADED</text>
+  <text x="564" y="708" class="cn body">docId · docUrl · hash · version · uploadUser</text>
+  <text x="564" y="737" class="mono small">save(version) → versionId</text>
+
+  <g filter="url(#shadow)">
+    <rect x="70" y="575" width="420" height="180" rx="22" fill="#ffffff" stroke="#4ca0ff" stroke-width="3"/>
+  </g>
+  <circle cx="110" cy="614" r="25" fill="#2473ea"/>
+  <text x="110" y="615" class="cn badge-text">8</text>
+  <text x="148" y="623" class="cn card-title">发布事件、提交并返回</text>
+  <text x="94" y="662" class="mono code">publishEvent(DocumentUploadedEvent)</text>
+  <text x="94" y="691" class="mono small">payload: documentId + versionId</text>
+  <text x="94" y="720" class="cn body">事务提交后，接口返回 Boolean.TRUE</text>
+  <text x="94" y="746" class="cn small">此时只代表“已受理”，转换尚未保证完成</text>
+
+  <!-- Sync arrows -->
+  <path d="M475 421 H520" class="arrow-blue"/>
+  <path d="M925 421 H970" class="arrow-blue"/>
+  <path d="M1375 421 H1464" class="arrow-blue"/>
+  <path d="M1834 421 H1918" class="arrow-red"/>
+  <text x="1870" y="400" class="cn" font-size="18" font-weight="700" fill="#d6433c">是</text>
+  <path d="M1650 526 V548 H1690 V563" class="arrow-blue"/>
+  <text x="1670" y="548" class="cn" font-size="18" font-weight="700" fill="#1d65d5">否</text>
+  <path d="M1480 665 H1442" class="arrow-blue"/>
+  <path d="M1010 665 H972" class="arrow-blue"/>
+  <path d="M540 665 H502" class="arrow-blue"/>
+
+  <!-- Section 2 -->
+  <rect x="48" y="835" width="2304" height="590" rx="28" fill="#fbf9ff" stroke="#a187f7" stroke-width="2"/>
+  <rect x="70" y="855" width="2260" height="58" rx="16" fill="url(#purpleBand)"/>
+  <circle cx="103" cy="884" r="9" fill="#7549e8"/>
+  <text x="127" y="894" class="cn section-title" fill="#5630c7">异步 DocumentUploadedEvent 处理链路</text>
+  <text x="790" y="893" class="cn" font-size="18" fill="#6e6098">事务提交后执行 ｜ eventListenerExecutor ｜ 事件监听与补偿任务共用同一处理入口</text>
+
+  <!-- Async A -->
+  <g filter="url(#shadow)">
+    <rect x="70" y="948" width="410" height="188" rx="22" fill="#ffffff" stroke="#a98cff" stroke-width="2"/>
+  </g>
+  <circle cx="110" cy="987" r="25" fill="#7549e8"/>
+  <text x="110" y="988" class="cn badge-text">A</text>
+  <text x="148" y="996" class="cn card-title">监听器接收事件</text>
+  <text x="94" y="1028" class="mono" font-size="16" fill="#6041b8">onDocumentUploaded(event)</text>
+  <rect x="92" y="1040" width="365" height="31" rx="9" fill="#f2edff"/>
+  <text x="104" y="1062" class="mono" font-size="14" fill="#6041b8">@TransactionalEventListener(AFTER_COMMIT)</text>
+  <rect x="92" y="1077" width="365" height="31" rx="9" fill="#f2edff"/>
+  <text x="106" y="1099" class="mono" font-size="15" fill="#244b9b">@Async("eventListenerExecutor")</text>
+  <text x="94" y="1127" class="cn small">上传事务回滚时，此监听器不会触发</text>
+
+  <!-- Async B -->
+  <g filter="url(#shadow)">
+    <rect x="530" y="948" width="430" height="188" rx="22" fill="#ffffff" stroke="#a98cff" stroke-width="2"/>
+  </g>
+  <circle cx="570" cy="987" r="25" fill="#7549e8"/>
+  <text x="570" y="988" class="cn badge-text">B</text>
+  <text x="608" y="996" class="cn card-title">进入统一处理入口</text>
+  <text x="554" y="1033" class="mono" font-size="16" fill="#6041b8">completeUploadedDocumentProcessing(...)</text>
+  <rect x="552" y="1047" width="386" height="36" rx="9" fill="#f2edff"/>
+  <text x="568" y="1072" class="mono" font-size="16" fill="#6041b8">@HLock(key = documentVersionId)</text>
+  <text x="554" y="1110" class="cn body">加载文档与版本，并校验归属关系</text>
+
+  <!-- Async C decision -->
+  <polygon points="1205,936 1395,1042 1205,1148 1015,1042" fill="#f8f4ff" stroke="#7d55ed" stroke-width="3" filter="url(#smallShadow)"/>
+  <circle cx="1105" cy="994" r="25" fill="#7549e8"/>
+  <text x="1105" y="995" class="cn badge-text">C</text>
+  <text x="1205" y="1010" class="cn" font-size="24" font-weight="700" fill="#33206f" text-anchor="middle">是否已经完整回写？</text>
+  <text x="1205" y="1047" class="mono" font-size="15" fill="#5b45a4" text-anchor="middle">currentVersionId == versionId</text>
+  <text x="1205" y="1072" class="mono" font-size="15" fill="#5b45a4" text-anchor="middle">&amp;&amp; convertedDocUrl 非空</text>
+  <text x="1205" y="1104" class="cn small" text-anchor="middle">幂等判断：避免重复转换</text>
+
+  <!-- Async D -->
+  <g filter="url(#shadow)">
+    <rect x="1450" y="948" width="420" height="188" rx="22" fill="#ffffff" stroke="#a98cff" stroke-width="2"/>
+  </g>
+  <circle cx="1490" cy="987" r="25" fill="#7549e8"/>
+  <text x="1490" y="988" class="cn badge-text">D</text>
+  <text x="1528" y="996" class="cn card-title">按需回源并识别类型</text>
+  <text x="1474" y="1027" class="mono" font-size="15" fill="#6041b8">processUploadedDocument(...)</text>
+  <text x="1474" y="1053" class="cn" font-size="16" fill="#087b5b">URL 已存在 → 跳过转换，直接进入 F</text>
+  <text x="1474" y="1079" class="mono" font-size="15" fill="#244b9b">URL 为空 → extractObjectName(...)</text>
+  <text x="1474" y="1105" class="mono" font-size="15" fill="#244b9b">downloadFile(...) + getFileType(...)</text>
+  <text x="1474" y="1131" class="cn small">从 MinIO 回读，不依赖请求中的 MultipartFile</text>
+
+  <!-- Async E decision -->
+  <polygon points="2115,936 2300,1042 2115,1148 1930,1042" fill="#f8f4ff" stroke="#7d55ed" stroke-width="3" filter="url(#smallShadow)"/>
+  <circle cx="2017" cy="994" r="25" fill="#7549e8"/>
+  <text x="2017" y="995" class="cn badge-text">E</text>
+  <text x="2115" y="1010" class="cn" font-size="24" font-weight="700" fill="#33206f" text-anchor="middle">找到匹配处理器？</text>
+  <text x="2115" y="1048" class="mono" font-size="15" fill="#5b45a4" text-anchor="middle">factory.get(fileType, kbType)</text>
+  <text x="2115" y="1083" class="cn small" text-anchor="middle">按文件类型与知识库类型选择</text>
+
+  <!-- Already done mini branch -->
+  <g filter="url(#smallShadow)">
+    <rect x="1050" y="1190" width="310" height="93" rx="18" fill="#ecfaf5" stroke="#38c799" stroke-width="2"/>
+  </g>
+  <text x="1205" y="1226" class="cn" font-size="21" font-weight="700" fill="#087b5b" text-anchor="middle">是：直接幂等返回</text>
+  <text x="1205" y="1256" class="cn small" text-anchor="middle">必要时推进目标状态</text>
+
+  <!-- Async E1 / E2 -->
+  <g filter="url(#shadow)">
+    <rect x="1740" y="1190" width="560" height="180" rx="22" fill="#ffffff" stroke="#a98cff" stroke-width="2"/>
+  </g>
+  <rect x="1762" y="1212" width="58" height="34" rx="17" fill="#7549e8"/>
+  <text x="1791" y="1235" class="cn" font-size="17" font-weight="700" fill="#fff" text-anchor="middle">E1</text>
+  <text x="1836" y="1239" class="cn card-title">存在处理器：执行转换/入库</text>
+  <text x="1765" y="1280" class="mono code">fileProcessService.processDocument(...)</text>
+  <text x="1765" y="1313" class="cn body">典型状态：UPLOADED → CONVERTING</text>
+  <text x="1765" y="1342" class="cn body">→ CONVERTED（文档）/ STORED（数据）</text>
+  <text x="1765" y="1366" class="mono small">return convertedDocUrl</text>
+
+  <g filter="url(#shadow)">
+    <rect x="1120" y="1300" width="550" height="100" rx="22" fill="#ffffff" stroke="#a98cff" stroke-width="2"/>
+  </g>
+  <rect x="1142" y="1320" width="58" height="34" rx="17" fill="#7549e8"/>
+  <text x="1171" y="1343" class="cn" font-size="17" font-weight="700" fill="#fff" text-anchor="middle">E2</text>
+  <text x="1215" y="1345" class="cn" font-size="22" font-weight="700" fill="#10234f">无处理器：直接复用原始 URL</text>
+  <text x="1144" y="1380" class="cn small">DOCUMENT_SEARCH → CONVERTED ｜ DATA_QUERY → STORED</text>
+
+  <!-- Async F -->
+  <g filter="url(#shadow)">
+    <rect x="540" y="1190" width="470" height="188" rx="22" fill="#ffffff" stroke="#a98cff" stroke-width="2"/>
+  </g>
+  <circle cx="580" cy="1229" r="25" fill="#7549e8"/>
+  <text x="580" y="1230" class="cn badge-text">F</text>
+  <text x="618" y="1238" class="cn card-title">短事务完成最终回写</text>
+  <rect x="562" y="1264" width="425" height="36" rx="9" fill="#f2edff"/>
+  <text x="578" y="1289" class="mono code">completeUploadProcessing(...)</text>
+  <text x="564" y="1325" class="mono small">version.convertedDocUrl = result</text>
+  <text x="564" y="1351" class="mono small">document.currentVersionId = versionId</text>
+  <text x="564" y="1375" class="mono small">document.status = version.status</text>
+
+  <!-- Async G -->
+  <g filter="url(#shadow)">
+    <rect x="70" y="1190" width="410" height="188" rx="22" fill="#f1fcf8" stroke="#27c58f" stroke-width="3"/>
+  </g>
+  <circle cx="110" cy="1229" r="25" fill="#0fa978"/>
+  <text x="110" y="1230" class="cn badge-text">G</text>
+  <text x="148" y="1238" class="cn card-title">异步处理完成</text>
+  <text x="94" y="1280" class="cn body">保存转换 URL、当前版本与最终状态</text>
+  <text x="94" y="1315" class="cn" font-size="18" fill="#087b5b">DOCUMENT_SEARCH：等待后续手动 split</text>
+  <text x="94" y="1345" class="cn" font-size="18" fill="#087b5b">DATA_QUERY：数据处理后进入 STORED</text>
+  <text x="94" y="1370" class="cn small">upload 本身不会自动完成切分和向量化</text>
+
+  <!-- Async arrows -->
+  <path d="M280 755 V820 H275 V936" class="arrow-purple"/>
+  <rect x="120" y="796" width="315" height="30" rx="15" fill="#ebe4ff"/>
+  <text x="277" y="817" class="cn" font-size="16" font-weight="700" fill="#5b35c0" text-anchor="middle">仅在事务成功提交后投递监听器</text>
+  <path d="M480 1042 H518" class="arrow-purple"/>
+  <path d="M960 1042 H1002" class="arrow-purple"/>
+  <path d="M1400 1042 H1438" class="arrow-purple"/>
+  <text x="1418" y="1021" class="cn" font-size="18" font-weight="700" fill="#5b35c0">否</text>
+  <path d="M1870 1042 H1918" class="arrow-purple"/>
+  <text x="1874" y="1021" class="cn" font-size="16" font-weight="700" fill="#5b35c0">URL为空</text>
+  <path d="M1580 1137 V1165 H1030 V1265 H1018" class="arrow-green" stroke-dasharray="8 7"/>
+  <text x="1435" y="1157" class="cn" font-size="16" font-weight="700" fill="#0b916a">URL 已存在：跳过转换</text>
+  <path d="M1205 1150 V1178" class="arrow-green"/>
+  <text x="1222" y="1175" class="cn" font-size="18" font-weight="700" fill="#0b916a">是</text>
+  <path d="M2115 1148 V1172 H2020 V1178" class="arrow-purple"/>
+  <text x="2132" y="1173" class="cn" font-size="18" font-weight="700" fill="#5b35c0">是</text>
+  <path d="M2050 1147 V1165 H1395 V1288" class="arrow-purple" stroke-dasharray="9 7"/>
+  <text x="1740" y="1158" class="cn" font-size="18" font-weight="700" fill="#5b35c0">否</text>
+  <path d="M1740 1280 H1690 V1350 H1682" class="arrow-purple"/>
+  <path d="M1120 1350 H1022" class="arrow-purple"/>
+  <path d="M540 1284 H492" class="arrow-green"/>
+  <path d="M1050 1236 H1022" class="arrow-green" stroke-dasharray="8 7"/>
+
+  <!-- Section 3 -->
+  <rect x="48" y="1455" width="2304" height="350" rx="28" fill="#fffaf1" stroke="#efbd58" stroke-width="2"/>
+  <rect x="70" y="1475" width="2260" height="56" rx="16" fill="url(#orangeBand)"/>
+  <circle cx="103" cy="1503" r="9" fill="#f0a11a"/>
+  <text x="127" y="1513" class="cn section-title" fill="#a85b04">失败路径与自动补偿</text>
+  <text x="425" y="1512" class="cn" font-size="18" fill="#8c6a35">同步失败决定是否提交事务；异步失败保留状态，由补偿任务再次进入同一幂等入口</text>
+
+  <!-- Recovery card 1 -->
+  <g filter="url(#shadow)">
+    <rect x="70" y="1560" width="600" height="205" rx="22" fill="#fff7f5" stroke="#f07b70" stroke-width="2"/>
+  </g>
+  <circle cx="112" cy="1600" r="25" fill="#ef5a52"/>
+  <text x="112" y="1601" class="cn badge-text">!</text>
+  <text x="150" y="1609" class="cn card-title">同步阶段失败</text>
+  <text x="94" y="1650" class="cn body">重复内容 / MinIO 上传失败：</text>
+  <text x="114" y="1680" class="cn" font-size="18" fill="#b3443e">抛出异常 → 数据库事务回滚 → 不触发事件</text>
+  <text x="94" y="1718" class="cn body">数据库保存或提交失败：</text>
+  <text x="114" y="1748" class="cn" font-size="18" fill="#b3443e">事务回滚；已上传的 MinIO 对象可能成为孤儿文件</text>
+
+  <!-- Recovery card 2 -->
+  <g filter="url(#shadow)">
+    <rect x="710" y="1560" width="600" height="205" rx="22" fill="#fffaf2" stroke="#f0b64a" stroke-width="2"/>
+  </g>
+  <circle cx="752" cy="1600" r="25" fill="#f0a11a"/>
+  <text x="752" y="1601" class="cn badge-text">R</text>
+  <text x="790" y="1609" class="cn card-title">异步监听器失败</text>
+  <text x="734" y="1650" class="mono code">catch (Exception) → log.error(...)</text>
+  <text x="734" y="1685" class="cn body">接口已经返回，不再影响上传事务</text>
+  <text x="734" y="1720" class="cn body">版本保留 UPLOADED / CONVERTING 等状态</text>
+  <text x="734" y="1748" class="cn small">等待下一轮补偿任务重新处理</text>
+
+  <!-- Recovery card 3 -->
+  <g filter="url(#shadow)">
+    <rect x="1350" y="1560" width="980" height="205" rx="22" fill="#f2fcf8" stroke="#29c392" stroke-width="2"/>
+  </g>
+  <circle cx="1392" cy="1600" r="25" fill="#0fa978"/>
+  <text x="1392" y="1601" class="cn badge-text">C</text>
+  <text x="1430" y="1609" class="cn card-title">documentUploadCompensation 定时补偿</text>
+  <text x="1374" y="1650" class="cn body">扫描超过延迟窗口的版本：</text>
+  <text x="1394" y="1680" class="mono" font-size="16" fill="#087b5b">status IN (UPLOADED, CONVERTING)</text>
+  <text x="1394" y="1708" class="mono" font-size="16" fill="#087b5b">OR status IN (CONVERTED, STORED) AND convertedDocUrl 为空</text>
+  <text x="1374" y="1740" class="cn" font-size="18" fill="#087b5b">重新调用 completeUploadedDocumentProcessing → 版本锁 + 幂等判断避免重复处理</text>
+
+  <path d="M1310 1664 H1338" class="arrow-green"/>
+
+  <!-- Footer legend -->
+  <line x1="70" y1="1840" x2="2330" y2="1840" stroke="#ccd8e8" stroke-width="2"/>
+  <circle cx="92" cy="1872" r="8" fill="#2f78ed"/>
+  <text x="112" y="1879" class="cn" font-size="17" fill="#60708b">蓝色：同步上传与事务落库</text>
+  <circle cx="420" cy="1872" r="8" fill="#7549e8"/>
+  <text x="440" y="1879" class="cn" font-size="17" fill="#60708b">紫色：异步事件与文档处理</text>
+  <circle cx="770" cy="1872" r="8" fill="#0fa978"/>
+  <text x="790" y="1879" class="cn" font-size="17" fill="#60708b">绿色：完成与补偿恢复</text>
+  <circle cx="1070" cy="1872" r="8" fill="#ef5a52"/>
+  <text x="1090" y="1879" class="cn" font-size="17" fill="#60708b">红色：终止与异常路径</text>
+  <text x="2328" y="1879" class="mono" font-size="16" fill="#60708b" text-anchor="end">DocumentProcessService#upload</text>
+</svg>

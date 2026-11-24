@@ -1,0 +1,237 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="3450" viewBox="0 0 1800 3450">
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#153a66" flood-opacity="0.10"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" orient="auto-start-reverse">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#184878"/>
+    </marker>
+    <marker id="arrowTeal" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" orient="auto-start-reverse">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#12aaa4"/>
+    </marker>
+    <style>
+      .title{font-family:"PingFang SC","Noto Sans CJK SC",sans-serif;font-weight:800;fill:#12365f}
+      .h1{font-size:62px}.h2{font-size:34px}.label{font-size:28px}.body{font-size:24px}.small{font-size:20px}.tiny{font-size:18px}
+      .code{font-family:"SFMono-Regular","JetBrains Mono",monospace;fill:#1b4775}
+      .muted{fill:#68809a}.navy{fill:#12365f}.teal{fill:#098f8b}.orange{fill:#c97500}.white{fill:#fff}
+      .node{fill:#f8fbff;stroke:#4f86f7;stroke-width:3;rx:24;filter:url(#shadow)}
+      .nodeTeal{fill:#effcf9;stroke:#12aaa4;stroke-width:3;rx:24;filter:url(#shadow)}
+      .nodeViolet{fill:#f5f0ff;stroke:#8a63e8;stroke-width:3;rx:24;filter:url(#shadow)}
+      .nodeWarn{fill:#fff7e6;stroke:#f3a51b;stroke-width:3;rx:24;filter:url(#shadow)}
+      .diamond{fill:#fff7e6;stroke:#f3a51b;stroke-width:3;filter:url(#shadow)}
+      .flow{fill:none;stroke:#184878;stroke-width:6;marker-end:url(#arrow)}
+      .retry{fill:none;stroke:#12aaa4;stroke-width:5;stroke-dasharray:16 12;marker-end:url(#arrowTeal)}
+      .thin{fill:none;stroke:#8aa3bd;stroke-width:3}
+      .badge{fill:#174b7e}.jumpA{fill:#174b7e;stroke:#fff;stroke-width:4}.jumpB{fill:#12aaa4;stroke:#fff;stroke-width:4}
+    </style>
+  </defs>
+
+  <rect width="1800" height="3450" fill="#fbfcfe"/>
+
+  <!-- Header -->
+  <text x="900" y="78" text-anchor="middle" class="title h1">AgentScope Java 1.0.12</text>
+  <text x="900" y="145" text-anchor="middle" class="title h1">策略一：历史工具调用压缩</text>
+  <text x="900" y="198" text-anchor="middle" class="title h2">AutoContextMemory.compressIfNeeded()</text>
+  <line x1="260" y1="224" x2="340" y2="224" class="flow"/>
+  <text x="370" y="232" class="title small">主流程</text>
+  <line x1="600" y1="224" x2="680" y2="224" class="retry"/>
+  <text x="710" y="232" class="title small">继续扫描</text>
+  <polygon points="1010,202 1050,224 1010,246 970,224" fill="#fff7e6" stroke="#f3a51b" stroke-width="3"/>
+  <text x="1080" y="232" class="title small">条件判断</text>
+  <rect x="1315" y="204" width="66" height="40" rx="8" fill="#f5f0ff" stroke="#8a63e8" stroke-width="3"/>
+  <text x="1410" y="232" class="title small">LLM 压缩</text>
+
+  <!-- Zone 01 -->
+  <rect x="35" y="270" width="1730" height="450" rx="36" fill="#eefaf8"/>
+  <circle cx="85" cy="325" r="32" fill="#fff"/><text x="85" y="335" text-anchor="middle" class="title label">01</text>
+  <text x="55" y="390" class="title label">触发与初始化</text>
+
+  <rect x="230" y="355" width="360" height="120" class="node"/>
+  <circle cx="230" cy="355" r="24" class="badge"/><text x="230" y="363" text-anchor="middle" class="title small white">01</text>
+  <text x="410" y="400" text-anchor="middle" class="title body">复制工作记忆</text>
+  <text x="410" y="438" text-anchor="middle" class="code small">currentContextMessages</text>
+  <line x1="590" y1="415" x2="705" y2="415" class="flow"/>
+
+  <polygon points="900,335 1100,415 900,495 700,415" class="diamond"/>
+  <circle cx="720" cy="350" r="24" class="badge"/><text x="720" y="358" text-anchor="middle" class="title small white">02</text>
+  <text x="900" y="393" text-anchor="middle" class="title body">达到压缩阈值？</text>
+  <text x="900" y="428" text-anchor="middle" class="small muted">消息数 ≥ msgThreshold</text>
+  <text x="900" y="459" text-anchor="middle" class="small muted">或 Token 数 ≥ maxToken × tokenRatio</text>
+
+  <line x1="1100" y1="415" x2="1235" y2="415" class="flow"/>
+  <text x="1155" y="395" class="title small navy">否</text>
+  <rect x="1250" y="355" width="340" height="120" class="nodeTeal"/>
+  <circle cx="1250" cy="355" r="24" class="badge"/><text x="1250" y="363" text-anchor="middle" class="title small white">03</text>
+  <text x="1420" y="425" text-anchor="middle" class="title body">否：return false</text>
+
+  <line x1="900" y1="495" x2="900" y2="540" class="flow"/>
+  <text x="920" y="525" class="title small navy">是</text>
+  <rect x="600" y="555" width="600" height="130" class="nodeViolet"/>
+  <circle cx="600" cy="555" r="24" class="badge"/><text x="600" y="563" text-anchor="middle" class="title small white">04</text>
+  <text x="900" y="590" text-anchor="middle" class="title body">初始化策略一</text>
+  <text x="650" y="626" class="code tiny">toolIters = 5</text>
+  <text x="650" y="656" class="code tiny">cursorStartIndex = 0</text>
+  <text x="920" y="626" class="code tiny">toolCompressed = false</text>
+  <text x="920" y="656" class="code tiny">compressionCount = 0</text>
+  <rect x="1260" y="540" width="380" height="145" class="nodeWarn"/>
+  <text x="1450" y="592" text-anchor="middle" class="title body orange">五次是候选组检查上限</text>
+  <text x="1450" y="628" text-anchor="middle" class="title small navy">尝试成功或跳过都会消耗一次</text>
+  <text x="1450" y="660" text-anchor="middle" class="title small navy">不是“成功压缩五次”</text>
+
+  <!-- Zone 02 -->
+  <rect x="35" y="750" width="1730" height="810" rx="36" fill="#eef4ff"/>
+  <circle cx="85" cy="805" r="32" fill="#fff"/><text x="85" y="815" text-anchor="middle" class="title label">02</text>
+  <text x="55" y="870" class="title label">候选组检索</text>
+
+  <line x1="900" y1="685" x2="900" y2="790" class="flow"/>
+  <circle cx="650" cy="820" r="30" class="jumpB"/><text x="650" y="830" text-anchor="middle" class="title body white">B</text>
+  <line x1="680" y1="820" x2="735" y2="820" class="retry"/>
+  <text x="560" y="875" text-anchor="middle" class="title small teal">继续下一次 while</text>
+  <polygon points="900,785 1070,850 900,915 730,850" class="diamond"/>
+  <circle cx="750" cy="800" r="24" class="badge"/><text x="750" y="808" text-anchor="middle" class="title small white">05</text>
+  <text x="900" y="860" text-anchor="middle" class="title body">toolIters &gt; 0？</text>
+
+  <line x1="1070" y1="850" x2="1285" y2="850" class="flow"/>
+  <text x="1140" y="830" class="title small navy">否</text>
+  <rect x="1300" y="795" width="275" height="110" class="node"/>
+  <text x="1438" y="862" text-anchor="middle" class="title body">退出循环</text>
+  <line x1="1575" y1="850" x2="1630" y2="850" class="flow"/>
+  <circle cx="1668" cy="850" r="30" class="jumpA"/><text x="1668" y="860" text-anchor="middle" class="title body white">A</text>
+  <text x="1648" y="915" text-anchor="middle" class="title small navy">循环结束</text>
+
+  <line x1="900" y1="915" x2="900" y2="960" class="flow"/>
+  <text x="922" y="948" class="title small navy">是</text>
+  <rect x="650" y="975" width="500" height="78" class="node"/>
+  <circle cx="650" cy="975" r="24" class="badge"/><text x="650" y="983" text-anchor="middle" class="title small white">06</text>
+  <text x="900" y="1025" text-anchor="middle" class="title body">toolIters--</text>
+  <text x="1180" y="1025" class="small orange">每次候选检查先扣减</text>
+
+  <line x1="900" y1="1053" x2="900" y2="1090" class="flow"/>
+  <rect x="540" y="1105" width="720" height="105" class="node"/>
+  <circle cx="540" cy="1105" r="24" class="badge"/><text x="540" y="1113" text-anchor="middle" class="title small white">07</text>
+  <text x="900" y="1148" text-anchor="middle" class="title body">重新复制当前工作记忆</text>
+  <text x="900" y="1183" text-anchor="middle" class="code tiny">currentMsgs = new ArrayList&lt;&gt;(workingMemoryStorage)</text>
+
+  <line x1="900" y1="1210" x2="900" y2="1248" class="flow"/>
+  <rect x="490" y="1260" width="820" height="110" class="node"/>
+  <circle cx="490" cy="1260" r="24" class="badge"/><text x="490" y="1268" text-anchor="middle" class="title small white">08</text>
+  <text x="900" y="1303" text-anchor="middle" class="title body">extractPrevToolMsgsForCompress(</text>
+  <text x="900" y="1340" text-anchor="middle" class="code small">currentMsgs, lastKeep, cursorStartIndex)</text>
+
+  <line x1="900" y1="1370" x2="900" y2="1402" class="flow"/>
+  <polygon points="900,1390 1090,1460 900,1530 710,1460" class="diamond"/>
+  <circle cx="730" cy="1405" r="24" class="badge"/><text x="730" y="1413" text-anchor="middle" class="title small white">09</text>
+  <text x="900" y="1470" text-anchor="middle" class="title body">找到 [startIndex, endIndex]？</text>
+  <line x1="1090" y1="1460" x2="1445" y2="1460" class="flow"/>
+  <text x="1160" y="1437" class="title small navy">否：break</text>
+  <circle cx="1490" cy="1460" r="30" class="jumpA"/><text x="1490" y="1470" text-anchor="middle" class="title body white">A</text>
+  <text x="1535" y="1470" class="title small navy">循环结束</text>
+
+  <rect x="1325" y="965" width="385" height="405" rx="24" fill="#f8fbff" stroke="#8aa3bd" stroke-width="3"/>
+  <text x="1518" y="1012" text-anchor="middle" class="title body">候选组筛选规则</text>
+  <text x="1350" y="1060" class="tiny navy">① totalSize &lt; lastKeep → null</text>
+  <text x="1350" y="1105" class="tiny navy">② 找到最近的最终 Assistant 回复</text>
+  <text x="1350" y="1150" class="tiny navy">③ 该消息及其后内容受保护</text>
+  <text x="1350" y="1195" class="tiny navy">④ searchEnd = min(latestAssistantIndex,</text>
+  <text x="1380" y="1226" class="tiny navy">totalSize - lastKeep)</text>
+  <text x="1350" y="1270" class="tiny navy">⑤ 从 cursorStartIndex 找最旧连续工具消息</text>
+  <text x="1350" y="1315" class="tiny navy">⑥ 数量必须 &gt; minConsecutiveToolMessages</text>
+  <text x="1350" y="1360" class="tiny navy">⑦ 起点 ToolUse，终点 ToolResult</text>
+
+  <!-- Zone 03 -->
+  <rect x="35" y="1590" width="1730" height="1175" rx="36" fill="#fff9ec"/>
+  <circle cx="85" cy="1645" r="32" fill="#fff"/><text x="85" y="1655" text-anchor="middle" class="title label">03</text>
+  <text x="55" y="1710" class="title label">Token 门槛与实际压缩</text>
+
+  <line x1="900" y1="1530" x2="900" y2="1630" class="flow"/>
+  <text x="922" y="1570" class="title small navy">是</text>
+  <rect x="560" y="1645" width="680" height="85" class="node"/>
+  <circle cx="560" cy="1645" r="24" class="badge"/><text x="560" y="1653" text-anchor="middle" class="title small white">10</text>
+  <text x="900" y="1698" text-anchor="middle" class="title body">提取候选工具消息组 toolsMsg</text>
+  <line x1="900" y1="1730" x2="900" y2="1760" class="flow"/>
+  <rect x="470" y="1770" width="860" height="80" class="node"/>
+  <circle cx="470" cy="1770" r="24" class="badge"/><text x="470" y="1778" text-anchor="middle" class="title small white">11</text>
+  <text x="900" y="1820" text-anchor="middle" class="code small">originalTokens = TokenCounterUtil.calculateToken(toolsMsg)</text>
+  <line x1="900" y1="1850" x2="900" y2="1882" class="flow"/>
+
+  <polygon points="900,1870 1150,1950 900,2030 650,1950" class="diamond"/>
+  <circle cx="680" cy="1888" r="24" class="badge"/><text x="680" y="1896" text-anchor="middle" class="title small white">12</text>
+  <text x="900" y="1938" text-anchor="middle" class="code tiny">originalTokens &lt;</text>
+  <text x="900" y="1972" text-anchor="middle" class="code tiny">minCompressionTokenThreshold？</text>
+
+  <line x1="1150" y1="1950" x2="1240" y2="1950" class="flow"/>
+  <text x="1175" y="1928" class="title small navy">是</text>
+  <rect x="1255" y="1865" width="420" height="190" class="nodeTeal"/>
+  <circle cx="1255" cy="1865" r="24" class="badge"/><text x="1255" y="1873" text-anchor="middle" class="title small white">13</text>
+  <text x="1465" y="1910" text-anchor="middle" class="title body">本组 Token 太少，跳过</text>
+  <text x="1300" y="1950" class="code tiny">actuallyCompressed = false</text>
+  <text x="1300" y="1982" class="code tiny">cursorStartIndex = endIndex + 1</text>
+  <text x="1465" y="2025" text-anchor="middle" class="small muted">跳过当前候选，避免重复命中</text>
+  <circle cx="1720" cy="1960" r="30" class="jumpB"/><text x="1720" y="1970" text-anchor="middle" class="title body white">B</text>
+
+  <line x1="900" y1="2030" x2="900" y2="2070" class="flow"/>
+  <text x="922" y="2055" class="title small navy">否</text>
+  <rect x="235" y="2090" width="930" height="610" class="nodeViolet"/>
+  <circle cx="235" cy="2090" r="24" class="badge"/><text x="235" y="2098" text-anchor="middle" class="title small white">14</text>
+  <text x="700" y="2140" text-anchor="middle" class="title label">summaryToolsMessages：实际压缩链路</text>
+  <line x1="300" y1="2170" x2="1100" y2="2170" class="thin"/>
+  <text x="285" y="2225" class="title small violet">①</text><text x="330" y="2225" class="code small">UUID.randomUUID()</text>
+  <text x="285" y="2277" class="title small violet">②</text><text x="330" y="2277" class="code small">offload(uuid, toolsMsg)</text><text x="760" y="2277" class="small muted">保存原始消息，可按 UUID 恢复</text>
+  <text x="285" y="2329" class="title small violet">③</text><text x="330" y="2329" class="body navy">过滤 plan 相关工具调用</text>
+  <text x="285" y="2381" class="title small violet">④</text><text x="330" y="2381" class="body navy">构造提示：压缩指令 + 工具消息 + 结束标记 + Plan 提示</text>
+  <text x="285" y="2433" class="title small violet">⑤</text><text x="330" y="2433" class="code small">model.stream(...)</text>
+  <text x="285" y="2485" class="title small violet">⑥</text><text x="330" y="2485" class="code small">processChunk(...) → buildFinalMessage()</text>
+  <text x="285" y="2537" class="title small violet">⑦</text><text x="330" y="2537" class="code small">.block()</text><text x="515" y="2537" class="small orange">同步等待 LLM 摘要</text>
+  <text x="285" y="2589" class="title small violet">⑧</text><text x="330" y="2589" class="body navy">生成 ASSISTANT 摘要，附加 offload UUID 与 ChatUsage</text>
+  <text x="285" y="2641" class="title small violet">⑨</text><text x="330" y="2641" class="code small">recordCompressionEvent(...)</text>
+  <text x="285" y="2693" class="title small violet">⑩</text><text x="330" y="2693" class="body navy">用 1 条摘要替换 [startIndex, endIndex]</text>
+
+  <line x1="1165" y1="2395" x2="1235" y2="2395" class="flow"/>
+  <rect x="1250" y="2205" width="455" height="300" class="nodeViolet"/>
+  <circle cx="1250" cy="2205" r="24" class="badge"/><text x="1250" y="2213" text-anchor="middle" class="title small white">15</text>
+  <text x="1478" y="2255" text-anchor="middle" class="title body">压缩成功后更新</text>
+  <text x="1290" y="2310" class="code tiny">replaceWorkingMessage(currentMsgs)</text>
+  <text x="1290" y="2355" class="code tiny">toolCompressed = true</text>
+  <text x="1290" y="2400" class="code tiny">compressionCount++</text>
+  <text x="1290" y="2445" class="code tiny">cursorStartIndex = startIndex + 1</text>
+  <text x="1478" y="2482" text-anchor="middle" class="small muted">跳过新生成的摘要，继续搜索</text>
+  <circle cx="1740" cy="2355" r="30" class="jumpB"/><text x="1740" y="2365" text-anchor="middle" class="title body white">B</text>
+
+  <rect x="1215" y="2560" width="500" height="150" class="nodeWarn"/>
+  <text x="1465" y="2612" text-anchor="middle" class="title body orange">一次最多检查 5 组候选</text>
+  <text x="1465" y="2652" text-anchor="middle" class="small navy">最坏可触发 5 次串行 LLM 调用</text>
+  <text x="1465" y="2685" text-anchor="middle" class="small navy">硬上限控制延迟、费用与执行时间</text>
+
+  <!-- Zone 04 -->
+  <rect x="35" y="2800" width="1730" height="420" rx="36" fill="#eefaf8"/>
+  <circle cx="85" cy="2855" r="32" fill="#fff"/><text x="85" y="2865" text-anchor="middle" class="title label">04</text>
+  <text x="55" y="2920" class="title label">退出与策略衔接</text>
+
+  <circle cx="900" cy="2848" r="34" class="jumpA"/><text x="900" y="2859" text-anchor="middle" class="title label white">A</text>
+  <text x="955" y="2860" class="title small navy">while 已结束</text>
+  <line x1="900" y1="2882" x2="900" y2="2930" class="flow"/>
+  <polygon points="900,2940 1125,3010 900,3080 675,3010" class="diamond"/>
+  <circle cx="700" cy="2950" r="24" class="badge"/><text x="700" y="2958" text-anchor="middle" class="title small white">16</text>
+  <text x="900" y="3020" text-anchor="middle" class="title body">toolCompressed？</text>
+
+  <line x1="675" y1="3010" x2="545" y2="3010" class="flow"/>
+  <text x="615" y="2987" class="title small navy">否</text>
+  <rect x="125" y="2945" width="405" height="130" class="nodeTeal"/>
+  <text x="328" y="2995" text-anchor="middle" class="title body">记录 SKIPPED</text>
+  <text x="328" y="3035" text-anchor="middle" class="small muted">继续进入策略 2</text>
+  <text x="328" y="3065" text-anchor="middle" class="small muted">Offload previous round large messages</text>
+
+  <line x1="1125" y1="3010" x2="1240" y2="3010" class="flow"/>
+  <text x="1165" y="2987" class="title small navy">是</text>
+  <rect x="1255" y="2930" width="420" height="160" class="nodeTeal"/>
+  <text x="1465" y="2980" text-anchor="middle" class="title body">记录 APPLIED</text>
+  <text x="1465" y="3020" text-anchor="middle" class="code small">Compressed compressionCount groups</text>
+  <text x="1465" y="3060" text-anchor="middle" class="title body">return true</text>
+  <text x="1465" y="3140" text-anchor="middle" class="title small navy">本次不再执行策略 2–6</text>
+
+  <!-- Footer -->
+  <rect x="150" y="3240" width="1500" height="105" rx="26" fill="#eaf3ff" stroke="#4f86f7" stroke-width="3"/>
+  <text x="900" y="3285" text-anchor="middle" class="title body">核心：游标保证向前推进；toolIters = 5 控制单次工作预算；循环结束后若曾成功则返回 true。</text>
+  <text x="900" y="3325" text-anchor="middle" class="small muted">成功 cursor = startIndex + 1 ｜ 失败 cursor = endIndex + 1 ｜ 数字 5 是硬编码经验值，不是动态 Token 计算结果</text>
+  <text x="900" y="3405" text-anchor="middle" class="small muted">主流程：阈值触发 → 初始化预算 → 最旧候选检索 → Token 门槛 → offload + LLM 摘要 → 游标推进 → 循环结束后决定返回</text>
+</svg>
