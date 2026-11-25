@@ -38,4 +38,10 @@ public class ChatConversation {
     @TableField(value = "deleted")
     private Integer deleted;
 
+    public ChatConversation(String conversationId, String userId, String title) {
+        this.conversationId = conversationId;
+        this.userId = userId;
+        this.title = title;
+    }
+
 }

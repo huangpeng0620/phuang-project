@@ -24,6 +24,9 @@ public class ChatMessage {
     @TableId(value = "message_id", type = IdType.INPUT)
     private String messageId;
 
+    /**
+     * 会话 ID(chat_conversation.conversation_id)
+     */
     private String conversationId;
 
     private String role;
@@ -54,4 +57,15 @@ public class ChatMessage {
     @TableLogic
     @TableField(value = "deleted")
     private Integer deleted;
+
+
+    public ChatMessage(String messageId, String conversationId, String role, String content,
+                       String agentName, String extra) {
+        this.messageId = messageId;
+        this.conversationId = conversationId;
+        this.role = role;
+        this.content = content;
+        this.agentName = agentName;
+        this.extra = extra;
+    }
 }

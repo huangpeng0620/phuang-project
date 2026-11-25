@@ -15,8 +15,10 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.Map;
 
 /**
- * 认证接口：登录、管理员建号、退出、获取当前用户信息。
- * <p>/api/auth/login 无需鉴权，其余接口需登录态。
+ * 认证接口：登录、管理员建号、退出、获取当前用户信息
+ * <p>
+ *     /api/auth/login 无需鉴权，其余接口需登录态
+ * </p>
  *
  * @author huangpeng
  */
@@ -50,8 +52,7 @@ public class LoginController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "仅管理员可以创建账号");
         }
         try {
-            authService.register(request.getUserId(), request.getUsername(), request.getPassword(),
-                    request.getRealName(), request.getRole());
+            authService.register(request.getUserId(), request.getUsername(), request.getPassword(), request.getRealName(), request.getRole());
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         } catch (DuplicateKeyException e) {
@@ -61,7 +62,7 @@ public class LoginController {
     }
 
     /**
-     * 退出登录，销毁当前 Token 对应的 sa-token 会话。
+     * 退出登录，销毁当前 Token 对应的 sa-token 会话
      */
     @PostMapping("/logout")
     @SaCheckLogin
@@ -71,7 +72,7 @@ public class LoginController {
     }
 
     /**
-     * 获取当前已登录用户信息。
+     * 获取当前已登录用户信息
      */
     @GetMapping("/info")
     @SaCheckLogin
