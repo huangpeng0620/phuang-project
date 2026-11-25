@@ -32,25 +32,29 @@ public class SaTokenConfigure implements WebMvcConfigurer {
     private static final long CORS_MAX_AGE_SECONDS = 3600L;
 
     /**
-     * 使用 CorsFilter（Servlet Filter 级别）处理 CORS。
+     * 使用 CorsFilter（Servlet Filter 级别）处理 CORS
      * CorsFilter 在 Spring MVC 拦截器之前运行，确保浏览器 OPTIONS 预检请求
-     * 不会触达 sa-token 鉴权逻辑，直接返回 200 + CORS 响应头。
+     * 不会触达 sa-token 鉴权逻辑，直接返回 200 + CORS 响应头
      */
     @Bean
     public CorsFilter corsFilter() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("*"));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
-        config.setExposedHeaders(List.of("Authorization"));
-        config.setAllowCredentials(false);
-        config.setMaxAge(CORS_MAX_AGE_SECONDS);
+        config.setAllowedOriginPatterns(List.of("*")); //允许任意网页来源
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS")); //允许跨域请求使用列出的 HTTP 方法
+        config.setAllowedHeaders(List.of("*")); //允许前端发给后端任意请求头
+        config.setExposedHeaders(List.of("Authorization")); //如果后端在响应里返回了 Authorization 头, 允许前端 JavaScript 读取它
+        config.setAllowCredentials(false); //关闭带浏览器凭证的跨域模式
+        config.setMaxAge(CORS_MAX_AGE_SECONDS); //允许浏览器把 OPTIONS 预检结果缓存一小时
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config);
+        source.registerCorsConfiguration("/**", config); //将上面这份规则绑定到 /**，也就是后端所有请求路径
         return new CorsFilter(source);
     }
 
+    /**
+     * 注册了 Sa-Token 拦截器
+     * @param registry
+     */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new SaInterceptor(handle -> {
@@ -59,16 +63,13 @@ public class SaTokenConfigure implements WebMvcConfigurer {
                     .check(r -> StpUtil.checkLogin());
         }) {
             @Override
-            public boolean preHandle(HttpServletRequest request,
-                                     HttpServletResponse response,
-                                     Object handler) throws Exception {
+            public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
                 // OPTIONS 预检请求无 Token，直接放行（CorsFilter 已处理完毕）
                 if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
                     return true;
                 }
                 return super.preHandle(request, response, handler);
             }
-
         }).addPathPatterns("/**");
     }
 }
