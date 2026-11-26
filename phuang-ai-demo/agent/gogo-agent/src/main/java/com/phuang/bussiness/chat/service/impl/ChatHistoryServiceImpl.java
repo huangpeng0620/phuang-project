@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.phuang.bussiness.chat.entity.ChatConversation;
 import com.phuang.bussiness.chat.entity.ChatMessage;
+import com.phuang.bussiness.chat.entity.ChatMessageRole;
 import com.phuang.bussiness.chat.mapper.ChatConversationMapper;
 import com.phuang.bussiness.chat.mapper.ChatMessageMapper;
 import com.phuang.bussiness.chat.model.ConversationView;
@@ -76,7 +77,34 @@ public class ChatHistoryServiceImpl implements ChatHistoryService {
     }
 
     /**
-     * 保存一条用户消息，同时创建/更新会话标题
+     * 查询某会话下最近 N 条消息（按时间正序返回）
+     *
+     * <p>
+     *     用于问题改写智能体加载跨 Agent 的全量对话上下文
+     * </p>
+     *
+     * @param conversationId 会话 ID
+     * @param limit          最大条数
+     * @return 按时间正序排列的消息实体列表
+     */
+    @Override
+    public List<ChatMessage> findRecentMessages(String conversationId, int limit) {
+        try {
+            List<ChatMessage> desc = chatMessageMapper.selectList(new LambdaQueryWrapper<ChatMessage>()
+                    .eq(ChatMessage::getConversationId, conversationId)
+                    .orderByDesc(ChatMessage::getCreatedAt)
+                    .last("LIMIT " + limit));
+            // 反转为时间正序，方便调用方直接拼接上下文
+            Collections.reverse(desc);
+            return desc;
+        } catch (Exception e) {
+            log.warn("[CHAT_HISTORY] 查询最近消息失败 conversationId={}: {}", conversationId, e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * 保存一条用户消息,同时创建/更新会话标题
      *
      * @param conversationId 会话ID
      * @param userId 用户ID
@@ -89,9 +117,23 @@ public class ChatHistoryServiceImpl implements ChatHistoryService {
         if (content != null && !content.isBlank()) {
             updateTitleFromFirstUserMessage(conversationId, content);
         }
-        ChatMessage message = new ChatMessage(generateMessageId(), conversationId, "user", content, null, null);
+        ChatMessage message = new ChatMessage(generateMessageId(), conversationId, ChatMessageRole.USER, content, null, null);
         chatMessageMapper.insert(message);
         log.debug("[CHAT_HISTORY] 保存用户消息 conversationId={}", conversationId);
+    }
+
+    /**
+     * 保存一条 AI 回复消息
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public String saveAssistantMessage(String conversationId, String userId, String content, String agentName, String extraJson) {
+        ensureConversationExists(conversationId, userId);
+        String messageId = generateMessageId();
+        ChatMessage message = new ChatMessage(messageId, conversationId, ChatMessageRole.AGENT, content, agentName, extraJson);
+        chatMessageMapper.insert(message);
+        log.debug("[CHAT_HISTORY] 保存AI消息 conversationId={}, agent={}, messageId={}", conversationId, agentName, messageId);
+        return messageId;
     }
 
     /**
@@ -141,6 +183,17 @@ public class ChatHistoryServiceImpl implements ChatHistoryService {
         chatConversationMapper.update(new LambdaUpdateWrapper<ChatConversation>()
                 .eq(ChatConversation::getConversationId, conversationId)
                 .set(ChatConversation::getTitle, title));
+    }
+
+    /**
+     * 保存一条系统消息（如错误提示、中断提示）
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void saveSystemMessage(String conversationId, String userId, String content) {
+        ensureConversationExists(conversationId, userId);
+        ChatMessage message = new ChatMessage(generateMessageId(), conversationId, ChatMessageRole.SYSTEM, content, null, null);
+        chatMessageMapper.insert(message);
     }
 
     /**

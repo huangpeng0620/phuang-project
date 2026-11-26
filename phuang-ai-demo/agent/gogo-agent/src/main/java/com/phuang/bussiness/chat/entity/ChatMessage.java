@@ -29,7 +29,7 @@ public class ChatMessage {
      */
     private String conversationId;
 
-    private String role;
+    private ChatMessageRole role;
 
     private String content;
 
@@ -59,7 +59,7 @@ public class ChatMessage {
     private Integer deleted;
 
 
-    public ChatMessage(String messageId, String conversationId, String role, String content,
+    public ChatMessage(String messageId, String conversationId, ChatMessageRole role, String content,
                        String agentName, String extra) {
         this.messageId = messageId;
         this.conversationId = conversationId;

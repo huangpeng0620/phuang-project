@@ -1,5 +1,6 @@
 package com.phuang.bussiness.chat.model;
 
+import com.phuang.bussiness.chat.entity.ChatMessageRole;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -18,7 +19,7 @@ public class MessageView {
 
     private String id;
 
-    private String role;
+    private ChatMessageRole role;
 
     private String content;
 
